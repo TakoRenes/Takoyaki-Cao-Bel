@@ -974,7 +974,7 @@ export const TakoyakiStallHero: React.FC<TakoyakiStallHeroProps> = ({
                       <div className="relative w-full h-full rounded-full overflow-hidden bg-[#341D17]">
                         {char.artwork ? (
                           <img
-                            src={char.artwork}
+                            src={char.artwork + (char.artwork.includes('?') ? '&' : '?') + 't=' + new Date(char.updatedAt).getTime()}
                             alt={char.name}
                             referrerPolicy="no-referrer"
                             className={`w-full h-full object-cover object-top scale-95 group-hover:opacity-100 group-hover:scale-105 group-focus-visible:opacity-100 transition-all duration-300 ${
