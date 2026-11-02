@@ -22,6 +22,7 @@ export const MyTakoyakiBox: React.FC<MyTakoyakiBoxProps> = ({
 }) => {
   // Always start closed when switching to My Box
   const [isOpen, setIsOpen] = useState<boolean>(false);
+  const [isGameOpen, setIsGameOpen] = useState<boolean>(false);
   const [steamTriggerCount, setSteamTriggerCount] = useState<number>(0);
   const [revealedId, setRevealedId] = useState<string | null>(null);
   const [currentBoxIndex, setCurrentBoxIndex] = useState<number>(0);
@@ -863,66 +864,20 @@ export const MyTakoyakiBox: React.FC<MyTakoyakiBoxProps> = ({
                 <circle cx="500" cy="390" r="34" stroke="#FAF3E6" strokeWidth="1.2" strokeDasharray="3 3" fill="none" />
 
                 {/* Cute Chibi Golden-Yellow Fox Head ("Cáo Vàng") Illustration inside the Red Medallion */}
-                <g transform="translate(500, 392)">
-                  {/* Left & Right Pointed Golden Fox Ears */}
-                  <path
-                    d="M -20 -6 L -24 -27 Q -14 -24 -6 -14 Z"
-                    fill="#F7C548"
-                    stroke="#432314"
-                    strokeWidth="1.5"
-                    strokeLinejoin="round"
-                  />
-                  <path
-                    d="M -17 -9 L -20 -21 Q -13 -19 -9 -13 Z"
-                    fill="#FFFDF7"
-                  />
-                  <path
-                    d="M 20 -6 L 24 -27 Q 14 -24 6 -14 Z"
-                    fill="#F7C548"
-                    stroke="#432314"
-                    strokeWidth="1.5"
-                    strokeLinejoin="round"
-                  />
-                  <path
-                    d="M 17 -9 L 20 -21 Q 13 -19 9 -13 Z"
-                    fill="#FFFDF7"
-                  />
-
-                  {/* Chubby Chibi Golden Fox Head Base */}
-                  <path
-                    d="M -23 2 C -24 -12, -13 -18, 0 -18 C 13 -18, 24 -12, 23 2 C 23 12, 13 18, 0 18 C -13 18, -23 12, -23 2 Z"
-                    fill="#F7C548"
-                    stroke="#432314"
-                    strokeWidth="1.5"
-                    strokeLinejoin="round"
-                  />
-
-                  {/* White Cream Fox Cheeks & Muzzle */}
-                  <path
-                    d="M -22 3 C -14 0, -6 4, 0 10 C 6 4, 14 0, 22 3 C 20 13, 12 18, 0 18 C -12 18, -20 13, -22 3 Z"
-                    fill="#FFFDF7"
-                  />
-
-                  {/* Cute Rosy Blush */}
-                  <ellipse cx="-13" cy="6" rx="3.4" ry="1.8" fill="#F28472" opacity="0.8" />
-                  <ellipse cx="13" cy="6" rx="3.4" ry="1.8" fill="#F28472" opacity="0.8" />
-
-                  {/* Happy Shiny Chibi Eyes */}
-                  <circle cx="-9.5" cy="0" r="2.5" fill="#432314" />
-                  <circle cx="-10.3" cy="-0.8" r="0.9" fill="#FFFFFF" />
-                  <circle cx="9.5" cy="0" r="2.5" fill="#432314" />
-                  <circle cx="8.7" cy="-0.8" r="0.9" fill="#FFFFFF" />
-
-                  {/* Tiny Button Nose & W-Mouth */}
-                  <ellipse cx="0" cy="6.2" rx="2.3" ry="1.6" fill="#432314" />
-                  <path
-                    d="M -3.5 9.2 Q -1.7 11.2 0 9.4 Q 1.7 11.2 3.5 9.2"
-                    stroke="#432314"
-                    strokeWidth="1.3"
-                    strokeLinecap="round"
-                    fill="none"
-                  />
-                </g>
+                {/* Replacement Fox Image */}
+                <image
+                  href="/assets/aistudio/image_e9917af5.png"
+                  x="450"
+                  y="340"
+                  width="100"
+                  height="100"
+                  preserveAspectRatio="xMidYMid meet"
+                  className="cursor-pointer"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setIsGameOpen(true);
+                  }}
+                />
 
                 <text
                   x="500"
@@ -976,6 +931,138 @@ export const MyTakoyakiBox: React.FC<MyTakoyakiBoxProps> = ({
           </p>
         </div>
       )}
+      {isGameOpen && (
+        <RockPaperScissorsModal
+          onClose={() => setIsGameOpen(false)}
+          onWin={() => {
+            setIsGameOpen(false);
+            setIsOpen(true);
+          }}
+        />
+      )}
     </section>
+  );
+};
+
+
+const RockPaperScissorsModal: React.FC<{ onClose: () => void; onWin: () => void }> = ({ onClose, onWin }) => {
+  const [wins, setWins] = useState(0);
+  const [losses, setLosses] = useState(0);
+  const [round, setRound] = useState(1);
+  const [message, setMessage] = useState('Sẵn sàng chưa? 1... 2... 3!');
+  const [foxState, setFoxState] = useState<'idle' | 'counting' | 'showing' | 'result'>('idle');
+  const [countdown, setCountdown] = useState<number | null>(null);
+  const [foxMove, setFoxMove] = useState<'búa' | 'bao' | 'kéo' | null>(null);
+  const [playerMove, setPlayerMove] = useState<'búa' | 'bao' | 'kéo' | null>(null);
+
+  const moveIcons = { 'búa': '✊', 'bao': '🖐️', 'kéo': '✌️' };
+
+  const playFoxLaugh = () => {
+    try {
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(440, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.1);
+      gain.gain.setValueAtTime(0.1, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.2);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.2);
+    } catch {}
+  };
+
+  const startRound = () => {
+    setFoxState('counting');
+    setCountdown(3);
+    setFoxMove(null);
+    setPlayerMove(null);
+    const interval = setInterval(() => {
+      setCountdown((c) => {
+        if (c === 1) {
+          clearInterval(interval);
+          setFoxState('showing');
+          return null;
+        }
+        return (c || 0) - 1;
+      });
+    }, 800);
+  };
+
+  const play = (move: 'búa' | 'bao' | 'kéo') => {
+    if (foxState !== 'showing') return;
+    
+    setPlayerMove(move);
+    const moves = ['búa', 'bao', 'kéo'] as const;
+    const fMove = moves[Math.floor(Math.random() * 3)];
+    setFoxMove(fMove);
+    setFoxState('result');
+    
+    let result = '';
+    if (move === fMove) result = 'Hòa!';
+    else if (
+      (move === 'búa' && fMove === 'kéo') ||
+      (move === 'bao' && fMove === 'búa') ||
+      (move === 'kéo' && fMove === 'bao')
+    ) {
+      result = 'Bạn thắng vòng này!';
+      setWins(wins + 1);
+    } else {
+      result = 'Cáo thắng vòng này!';
+      playFoxLaugh();
+      setLosses(losses + 1);
+    }
+    
+    setTimeout(() => {
+      const nextRound = round + 1;
+      if (nextRound > 3) {
+        if (wins + (result === 'Bạn thắng vòng này!' ? 1 : 0) >= 2) {
+          setMessage(`Bạn thắng ${wins + (result === 'Bạn thắng vòng này!' ? 1 : 0)} - ${losses + (result === 'Cáo thắng vòng này!' ? 1 : 0)}! Mở hộp thôi!`);
+          setTimeout(onWin, 1500);
+        } else {
+          setMessage(`Bạn thua ${wins + (result === 'Bạn thắng vòng này!' ? 1 : 0)} - ${losses + (result === 'Cáo thắng vòng này!' ? 1 : 0)}! Éc éc éc! Chơi lại nha!`);
+          setWins(0); setLosses(0); setRound(1);
+          setFoxState('idle');
+        }
+      } else {
+        setMessage(`Cáo ra ${fMove}. ${result} (Tỉ số: ${wins + (result === 'Bạn thắng vòng này!' ? 1 : 0)}-${losses + (result === 'Cáo thắng vòng này!' ? 1 : 0)})`);
+        setRound(nextRound);
+        setFoxState('idle');
+      }
+    }, 2000);
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#3D251E]/60 backdrop-blur-sm">
+      <div className="bg-[#FFFDF9] border-2 border-[#D4A373] rounded-3xl p-6 shadow-2xl w-full max-w-sm text-center">
+        <h3 className="font-display text-xl font-bold text-[#432314] mb-4">Oẳn tù tì với Cáo Bel</h3>
+        <div className="mb-6 flex flex-col items-center">
+            <img src="/assets/aistudio/image_e9917af5.png" alt="Cáo Bel" className={`w-24 h-24 mb-4 object-contain transition-transform ${foxState === 'counting' ? 'animate-bounce' : ''}`} />
+            {foxState === 'result' && (
+              <div className="flex gap-4 mb-2 text-2xl font-bold">
+                <span>Bạn: {playerMove && moveIcons[playerMove]}</span>
+                <span>Cáo: {foxMove && moveIcons[foxMove]}</span>
+              </div>
+            )}
+            <p className="text-sm text-[#7A5C4F]">{countdown ? `Đếm: ${countdown}!` : message}</p>
+        </div>
+        
+        {foxState === 'idle' && (
+             <button onClick={startRound} className="px-6 py-2 bg-[#E57C29] text-white rounded-lg cursor-pointer">Bắt đầu vòng {round}</button>
+        )}
+        
+        {foxState === 'showing' && (
+            <div className="flex justify-center gap-4">
+              <button onClick={() => play('búa')} className="px-4 py-2 bg-[#E57C29] text-white rounded-lg cursor-pointer">✊ Búa</button>
+              <button onClick={() => play('bao')} className="px-4 py-2 bg-[#E57C29] text-white rounded-lg cursor-pointer">🖐️ Bao</button>
+              <button onClick={() => play('kéo')} className="px-4 py-2 bg-[#E57C29] text-white rounded-lg cursor-pointer">✌️ Kéo</button>
+            </div>
+        )}
+      </div>
+    </div>
   );
 };
