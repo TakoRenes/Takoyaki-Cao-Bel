@@ -1,0 +1,75 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isCreatorAdmin() {
+      return isSignedIn() &&
+        (request.auth.token.email == "hoangyendo1212@gmail.com" ||
+         request.auth.token.email.matches('(?i)^hoangyendo1212@gmail\\.com$'));
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128;
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    match /test/{docId} {
+      allow get: if true;
+    }
+
+    match /characters/{characterId} {
+      allow get, list: if true;
+      allow create, delete: if isValidId(characterId) && isCreatorAdmin();
+      allow update: if isValidId(characterId) && (
+        isCreatorAdmin() ||
+        incoming().diff(existing()).affectedKeys().hasOnly(['viewCount', 'playCount', 'favoriteCount', 'updatedAt'])
+      );
+    }
+
+    match /users/{userId}/box/{characterId} {
+      allow get, list: if isSignedIn() && request.auth.uid == userId;
+      allow create, update, delete: if isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidFeedback(data) {
+      return data.keys().hasAll(['authorName', 'rating', 'isAnonymous', 'createdAt']) &&
+        data.authorName is string &&
+        data.authorName.size() <= 100 &&
+        data.rating is number &&
+        data.rating >= 1 &&
+        data.rating <= 5 &&
+        data.isAnonymous is bool &&
+        data.createdAt is string;
+    }
+
+    match /feedbacks/{feedbackId} {
+      allow get, list: if true;
+      allow create: if isValidId(feedbackId) && isValidFeedback(incoming());
+      allow update: if isValidId(feedbackId) && (
+        isCreatorAdmin() ||
+        incoming().diff(existing()).affectedKeys().hasOnly(['helpfulCount']) ||
+        isValidFeedback(incoming())
+      );
+      allow delete: if isValidId(feedbackId) && isCreatorAdmin();
+    }
+
+    match /spicyWhitelist/{emailId} {
+      allow get, list: if true;
+      allow create, update, delete: if isValidId(emailId) && isCreatorAdmin();
+    }
+  }
+}

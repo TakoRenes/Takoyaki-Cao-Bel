@@ -1,0 +1,6 @@
+{
+  "name": "Takoyaki — Sunset Story Stall",
+  "description": "A cozy Japanese takoyaki street cart at sunset for discovering AI roleplay characters, stories, and scenarios.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
