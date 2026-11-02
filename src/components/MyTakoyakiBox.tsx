@@ -866,7 +866,7 @@ export const MyTakoyakiBox: React.FC<MyTakoyakiBoxProps> = ({
                 {/* Cute Chibi Golden-Yellow Fox Head ("Cáo Vàng") Illustration inside the Red Medallion */}
                 {/* Replacement Fox Image */}
                 <image
-                  href="/assets/aistudio/image_e9917af5.png"
+                  href="./assets/aistudio/image_e9917af5.png"
                   x="450"
                   y="340"
                   width="100"
