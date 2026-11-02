@@ -448,7 +448,10 @@ export default function App() {
           if (Array.isArray(syncData.characters) && syncData.characters.length > 0) {
             const formatted = syncData.characters.map((c: TakoyakiCharacter) => ({
               ...c,
-              is_spicy: Boolean(c.is_spicy), avatar: c.avatar || c.artwork || '', coverImage: c.coverImage || c.artwork || '',
+              is_spicy: Boolean(c.is_spicy), 
+              avatar: c.avatar || c.artwork || '', 
+              coverImage: c.coverImage || c.artwork || '',
+              imagePosition: c.imagePosition || 'center',
             }));
             setCharacters(formatted);
             try {
