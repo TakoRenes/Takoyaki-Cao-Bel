@@ -152,7 +152,6 @@ export const TakoyakiTraySection: React.FC<TakoyakiTraySectionProps> = ({
 
                       {/* Takoyaki Character Avatar Sphere */}
                       <div
-                        data-takoyaki-ball-id={char.id}
                         className="relative w-14 h-14 sm:w-18 sm:h-18 rounded-full p-1 shrink-0 transition-transform duration-200 group-hover:scale-105"
                         style={{
                           background: char.is_spicy
@@ -465,7 +464,6 @@ export const TakoyakiTraySection: React.FC<TakoyakiTraySectionProps> = ({
                   {/* Center of Square Compartment: Round Takoyaki Ball (Reveals Character on Hover or 1st Tap) */}
                   <div className="relative my-auto flex flex-col items-center justify-center py-1">
                     <div
-                      data-takoyaki-ball-id={char.id}
                       className={`relative w-22 h-22 sm:w-24 sm:h-24 rounded-full transition-transform duration-200 group-hover:-translate-y-1.5 group-hover:scale-105 ${
                         isRevealed ? '-translate-y-1.5 scale-105' : ''
                       }`}

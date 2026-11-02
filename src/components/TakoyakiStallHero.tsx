@@ -813,7 +813,6 @@ export const TakoyakiStallHero: React.FC<TakoyakiStallHeroProps> = ({
                     <button
                       key={char.id}
                       type="button"
-                      data-takoyaki-ball-id={char.id}
                       onPointerDown={(e) => {
                         lastPointerTypeRef.current = e.pointerType;
                       }}
@@ -1006,7 +1005,6 @@ export const TakoyakiStallHero: React.FC<TakoyakiStallHeroProps> = ({
                     <button
                       key={char.id}
                       type="button"
-                      data-takoyaki-ball-id={char.id}
                       onPointerDown={(e) => {
                         lastPointerTypeRef.current = e.pointerType;
                       }}

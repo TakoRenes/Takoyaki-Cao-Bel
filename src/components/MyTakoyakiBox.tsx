@@ -549,18 +549,18 @@ export const MyTakoyakiBox: React.FC<MyTakoyakiBoxProps> = ({
               // Exactly 3 balls per row (grid-cols-3). Max 6 balls per box = at most 2 rows!
               const gapClass =
                 rows === 1
-                  ? 'gap-x-4 sm:gap-x-8 gap-y-2'
-                  : 'gap-x-3 sm:gap-x-7 gap-y-1.5 sm:gap-y-2.5';
+                  ? 'gap-x-6 sm:gap-x-12 gap-y-4'
+                  : 'gap-x-4 sm:gap-x-10 gap-y-3 sm:gap-y-4';
 
               const ballSizeClass =
                 rows === 1
-                  ? 'w-11 h-11 sm:w-16 sm:h-16 md:w-20 md:h-20'
-                  : 'w-8 h-8 sm:w-13 sm:h-13 md:w-16 md:h-16';
+                  ? 'w-16 h-16 sm:w-20 sm:h-20 md:w-24 md:h-24'
+                  : 'w-12 h-12 sm:w-16 sm:h-16 md:w-20 md:h-20';
 
               const tagTextClass =
                 rows === 1
-                  ? 'text-[8.5px] sm:text-xs px-2 py-0.5 max-w-[76px] sm:max-w-[115px] mt-1'
-                  : 'text-[7.5px] sm:text-[10px] px-1.5 sm:px-2 py-0 max-w-[68px] sm:max-w-[100px] mt-0.5';
+                  ? 'text-[10px] sm:text-xs px-2.5 py-0.5 max-w-[90px] sm:max-w-[130px] mt-1.5'
+                  : 'text-[9px] sm:text-[11px] px-2 sm:px-2.5 py-0.5 max-w-[75px] sm:max-w-[110px] mt-1';
 
               return (
                 <div className="w-full h-full px-1 flex items-center justify-center overflow-visible">
@@ -607,7 +607,6 @@ export const MyTakoyakiBox: React.FC<MyTakoyakiBoxProps> = ({
                           {/* Takoyaki Ball with Uploaded Character Artwork (Reveals Character on Hover or 1st Tap) */}
                           <button
                             type="button"
-                            data-takoyaki-ball-id={char.id}
                             onPointerDown={(e) => {
                               lastPointerTypeRef.current = e.pointerType;
                             }}

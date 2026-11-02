@@ -28,17 +28,15 @@ import {
   ActiveTab,
 } from './types';
 import { Navbar } from './components/Navbar';
-import {
-  WelcomeHeroPage,
-  TakoyakiStallHero,
-  WelcomeTransitionOrigin,
-} from './components/TakoyakiStallHero';
+import { WelcomeHeroPage, TakoyakiStallHero } from './components/TakoyakiStallHero';
 import { CharacterDetailModal } from './components/CharacterDetailModal';
 import { TakoyakiKitchen } from './components/TakoyakiKitchen';
 import { TakoyakiTraySection } from './components/TakoyakiTraySection';
 import { MyTakoyakiBox } from './components/MyTakoyakiBox';
 import { FeedbackSection } from './components/FeedbackSection';
 import { UserProfilePage } from './components/UserProfilePage';
+import { CurtainTransition } from './components/CurtainTransition';
+import { playGreetingSound } from './utils/greetingSound';
 import { Search, X, ChefHat, Flame, LogIn, LogOut, UserCheck, User as UserIcon, Lock, Bell } from 'lucide-react';
 
 const GUEST_FAVORITES_STORAGE_KEY = 'takoyaki_guest_box_favorites_v1';
@@ -79,10 +77,10 @@ export default function App() {
     return [];
   });
   const [isRefreshingFeedbacks, setIsRefreshingFeedbacks] = useState<boolean>(false);
+  // Transition state
+  const [isTransitioning, setIsTransitioning] = useState(false);
   // Start on the outer welcome page ('welcome')
   const [activeTab, setActiveTab] = useState<ActiveTab>('welcome');
-  const [welcomeTransitionOrigin, setWelcomeTransitionOrigin] =
-    useState<WelcomeTransitionOrigin | null>(null);
   const [selectedCharacter, setSelectedCharacter] = useState<TakoyakiCharacter | null>(null);
   const [editingCharacter, setEditingCharacter] = useState<TakoyakiCharacter | null>(null);
 
@@ -1065,10 +1063,13 @@ export default function App() {
         {/* DEDICATED OPENING PAGE: Hero Stall Banner with "Quẹo lựa takoyaki" */}
         {activeTab === 'welcome' && (
           <WelcomeHeroPage
-            onEnterTrays={(origin) => {
-              window.scrollTo({ top: 0, behavior: 'instant' as ScrollBehavior });
-              setWelcomeTransitionOrigin(origin || null);
-              setActiveTab('discover');
+            onEnterTrays={() => {
+              playGreetingSound();
+              setIsTransitioning(true);
+              setTimeout(() => {
+                setActiveTab('discover');
+                setIsTransitioning(false);
+              }, 1000);
             }}
           />
         )}
@@ -1080,8 +1081,6 @@ export default function App() {
             spicyCharacters={spicyCharacters}
             favorites={favorites}
             onSelectCharacter={handleSelectCharacter}
-            transitionOrigin={welcomeTransitionOrigin}
-            onTransitionComplete={() => setWelcomeTransitionOrigin(null)}
           />
         )}
 
@@ -1612,6 +1611,7 @@ export default function App() {
           </div>
         </div>
       )}
+        {isTransitioning && <CurtainTransition />}
     </div>
   );
 }
