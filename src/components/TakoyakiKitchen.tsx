@@ -87,6 +87,7 @@ export const TakoyakiKitchen: React.FC<TakoyakiKitchenProps> = ({
   const [allowsMale, setAllowsMale] = useState<boolean>(
     Boolean(initialEditCharacter?.allowsMale)
   );
+  const [imagePosition, setImagePosition] = useState<string>(initialEditCharacter?.imagePosition || 'center');
 
   // Real statistics computed strictly from actual characters (starts at 0)
   const totalCharacters = characters.length;
@@ -112,6 +113,7 @@ export const TakoyakiKitchen: React.FC<TakoyakiKitchenProps> = ({
     setCreator('Cáo Bel');
     setPlayUrl('');
     setIsSpicy(false);
+    setImagePosition('center');
     setAllowsFemale(true);
     setAllowsMale(false);
     setErrorMsg(null);
@@ -137,6 +139,7 @@ export const TakoyakiKitchen: React.FC<TakoyakiKitchenProps> = ({
     setCreator(!char.creator || char.creator === 'Stall Master' ? 'Cáo Bel' : char.creator);
     setPlayUrl(char.playUrl);
     setIsSpicy(Boolean(char.is_spicy));
+    setImagePosition(char.imagePosition || 'center');
     setAllowsFemale(char.allowsFemale !== undefined ? Boolean(char.allowsFemale) : true);
     setAllowsMale(Boolean(char.allowsMale));
     setErrorMsg(null);
@@ -223,6 +226,7 @@ export const TakoyakiKitchen: React.FC<TakoyakiKitchenProps> = ({
           is_spicy: isSpicy,
           allowsMale,
           allowsFemale,
+          imagePosition,
           status: targetStatus,
         },
         editingId
@@ -362,7 +366,7 @@ export const TakoyakiKitchen: React.FC<TakoyakiKitchenProps> = ({
                         src={artwork}
                         alt="Artwork preview"
                         referrerPolicy="no-referrer"
-                        className="w-full h-full object-cover"
+                        className={`w-full h-full object-cover object-${imagePosition}`}
                       />
                     </div>
                     <span className="text-xs text-[#7A5C4F]">
@@ -396,6 +400,29 @@ export const TakoyakiKitchen: React.FC<TakoyakiKitchenProps> = ({
                   placeholder="slow burn, cozy cafe, childhood friend..."
                   className="w-full px-3.5 py-2 rounded-lg bg-[#FDF8F0] border border-[#D4A373] text-sm text-[#3D251E] focus:outline-none focus:border-[#E8833A]"
                 />
+              </div>
+
+              {/* IMAGE POSITION CONTROL */}
+              <div className="p-4 rounded-xl bg-[#F5EBD9] border border-[#D4A373]">
+                <label className="block text-xs font-semibold text-[#3D251E] mb-2">
+                  Image Framing (Chỉnh khung ảnh)
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  {['top', 'center', 'bottom'].map((pos) => (
+                    <button
+                      key={pos}
+                      type="button"
+                      onClick={() => setImagePosition(pos)}
+                      className={`px-2 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
+                        imagePosition === pos
+                          ? 'bg-[#E8833A] text-white border-[#D67229]'
+                          : 'bg-white text-[#7A5C4F] border-[#D4A373] hover:text-[#3D251E]'
+                      }`}
+                    >
+                      {pos.charAt(0).toUpperCase() + pos.slice(1)}
+                    </button>
+                  ))}
+                </div>
               </div>
 
               {/* SPICY FLAVOR CLASSIFICATION TOGGLE */}

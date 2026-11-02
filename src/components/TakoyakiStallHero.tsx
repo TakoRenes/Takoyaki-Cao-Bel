@@ -784,7 +784,7 @@ export const TakoyakiStallHero: React.FC<TakoyakiStallHeroProps> = ({
                             src={char.artwork}
                             alt={char.name}
                             referrerPolicy="no-referrer"
-                            className={`w-full h-full object-cover scale-95 group-hover:opacity-100 group-hover:scale-105 group-focus-visible:opacity-100 transition-all duration-300 ${
+                            className={`w-full h-full object-cover object-top scale-95 group-hover:opacity-100 group-hover:scale-105 group-focus-visible:opacity-100 transition-all duration-300 ${
                               isRevealed ? 'opacity-100 scale-105' : 'opacity-0'
                             }`}
                           />
@@ -977,7 +977,7 @@ export const TakoyakiStallHero: React.FC<TakoyakiStallHeroProps> = ({
                             src={char.artwork}
                             alt={char.name}
                             referrerPolicy="no-referrer"
-                            className={`w-full h-full object-cover scale-95 group-hover:opacity-100 group-hover:scale-105 group-focus-visible:opacity-100 transition-all duration-300 ${
+                            className={`w-full h-full object-cover object-top scale-95 group-hover:opacity-100 group-hover:scale-105 group-focus-visible:opacity-100 transition-all duration-300 ${
                               isRevealed ? 'opacity-100 scale-105' : 'opacity-0'
                             }`}
                           />

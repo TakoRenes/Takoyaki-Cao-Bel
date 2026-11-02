@@ -38,6 +38,7 @@ export interface TakoyakiCharacter {
   createdAt: string;
   updatedAt: string;
   status: CharacterStatus;
+  imagePosition?: string;
 }
 
 export interface CharacterCreateInput {
@@ -61,6 +62,7 @@ export interface CharacterCreateInput {
   allowsMale?: boolean;
   allowsFemale?: boolean;
   status: CharacterStatus;
+  imagePosition?: string;
 }
 
 export interface FeedbackReview {
