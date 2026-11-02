@@ -23,9 +23,9 @@ jobs:
           node-version: "22"
       - run: npm install --legacy-peer-deps
       - run: |
-          sed -i 's|src="/assets/aistudio/|src="./assets/aistudio/|g' src/components/*.tsx
-          sed -i "s|fetch('/api/characters')|fetch('./data/characters.json')|g" src/App.tsx
-          sed -i "s|is_spicy: Boolean(c.is_spicy),|is_spicy: Boolean(c.is_spicy), avatar: c.avatar || c.artwork || '', coverImage: c.coverImage || c.artwork || '',|g" src/App.tsx
+          sed -i 's#src="/assets/aistudio/#src="./assets/aistudio/#g' src/components/*.tsx
+          sed -i "s#fetch('/api/characters')#fetch('./data/characters.json')#g" src/App.tsx
+          sed -i "s#is_spicy: Boolean(c.is_spicy),#is_spicy: Boolean(c.is_spicy), avatar: c.avatar || c.artwork || '', coverImage: c.coverImage || c.artwork || '',#g" src/App.tsx
           npx vite build --base=./
           mkdir -p dist/data
           cp -r data/*.json dist/data/ 2>/dev/null || true
