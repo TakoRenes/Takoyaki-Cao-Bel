@@ -326,9 +326,8 @@ export const TakoyakiStallHero: React.FC<TakoyakiStallHeroProps> = ({
   const [hasJustLanded, setHasJustLanded] = useState<boolean>(false);
   const helperFoxContainerRef = useRef<HTMLDivElement | null>(null);
   const flyingFoxRef = useRef<HTMLDivElement | null>(null);
-  const coverGhostRef = useRef<HTMLDivElement | null>(null);
 
-  useLayoutEffect(() => {
+    useLayoutEffect(() => {
     if (!transitionOrigin) {
       setIsMorphingFox(false);
       return;
@@ -339,7 +338,6 @@ export const TakoyakiStallHero: React.FC<TakoyakiStallHeroProps> = ({
 
     const targetEl = helperFoxContainerRef.current;
     const flyingEl = flyingFoxRef.current;
-    const coverEl = coverGhostRef.current;
 
     if (!targetEl || !flyingEl) {
       setIsMorphingFox(false);
@@ -368,30 +366,6 @@ export const TakoyakiStallHero: React.FC<TakoyakiStallHeroProps> = ({
     const bigFoxDiameter = Math.max(foxRect.width, foxRect.height) * 1.18;
     const targetDiameter = Math.max(targetRect.width, 96);
     const startScale = Math.max(1.5, Math.min(2.25, bigFoxDiameter / targetDiameter));
-
-    // 1. Dissolve and zoom the Welcome Cover Ghost card smoothly
-    let coverAnim: Animation | null = null;
-    if (coverEl && typeof coverEl.animate === 'function') {
-      coverAnim = coverEl.animate(
-        [
-          {
-            transform: 'scale(1)',
-            opacity: 0.96,
-            filter: 'blur(0px)',
-          },
-          {
-            transform: 'scale(1.09)',
-            opacity: 0,
-            filter: 'blur(6px)',
-          },
-        ],
-        {
-          duration: 850,
-          easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
-          fill: 'forwards',
-        }
-      );
-    }
 
     // 2. Animate the Big Fox popping out from the cover stall and shrinking into the Helper Fox
     let foxAnim: Animation | null = null;
@@ -449,7 +423,6 @@ export const TakoyakiStallHero: React.FC<TakoyakiStallHeroProps> = ({
 
     return () => {
       window.clearTimeout(fallbackTimer);
-      coverAnim?.cancel();
       foxAnim?.cancel();
     };
   }, [transitionOrigin, onTransitionComplete]);
@@ -540,30 +513,6 @@ export const TakoyakiStallHero: React.FC<TakoyakiStallHeroProps> = ({
       {/* =================================================================== */}
       {isMorphingFox && transitionOrigin && (
         <div className="fixed inset-0 z-50 pointer-events-none overflow-hidden">
-          {/* Dissolving Welcome Cover Card */}
-          <div
-            ref={coverGhostRef}
-            style={{
-              position: 'fixed',
-              top: transitionOrigin.cardRect.top,
-              left: transitionOrigin.cardRect.left,
-              width: transitionOrigin.cardRect.width,
-              height: transitionOrigin.cardRect.height,
-            }}
-            className="rounded-[32px] overflow-hidden shadow-2xl border border-[#E6D6C1] origin-center"
-          >
-            <img
-              src={assets.heroCover}
-              onError={(e) => {
-                if (e.currentTarget.src !== fallbacks.heroCover) {
-                  e.currentTarget.src = fallbacks.heroCover;
-                }
-              }}
-              alt=""
-              className="w-full h-full object-cover object-center"
-            />
-          </div>
-
           {/* Warm Steam / Golden Puff Ring at Big Fox Launch Point */}
           <div
             style={{
@@ -572,6 +521,7 @@ export const TakoyakiStallHero: React.FC<TakoyakiStallHeroProps> = ({
               left: transitionOrigin.foxRect.left + transitionOrigin.foxRect.width / 2,
               width: Math.max(transitionOrigin.foxRect.width, 130),
               height: Math.max(transitionOrigin.foxRect.height, 130),
+              zIndex: 60,
             }}
             className="rounded-full border-4 border-[#FFE0B2] bg-[#FFF3E0]/55 shadow-[0_0_40px_rgba(229,124,41,0.6)] animate-fox-puff"
           />
@@ -582,6 +532,7 @@ export const TakoyakiStallHero: React.FC<TakoyakiStallHeroProps> = ({
             style={{
               position: 'fixed',
               willChange: 'transform, opacity',
+              zIndex: 70,
             }}
             className="flex items-center justify-center"
           >
@@ -813,6 +764,7 @@ export const TakoyakiStallHero: React.FC<TakoyakiStallHeroProps> = ({
                     <button
                       key={char.id}
                       type="button"
+                      data-takoyaki-ball-id={char.id}
                       onPointerDown={(e) => {
                         lastPointerTypeRef.current = e.pointerType;
                       }}
@@ -1005,6 +957,7 @@ export const TakoyakiStallHero: React.FC<TakoyakiStallHeroProps> = ({
                     <button
                       key={char.id}
                       type="button"
+                      data-takoyaki-ball-id={char.id}
                       onPointerDown={(e) => {
                         lastPointerTypeRef.current = e.pointerType;
                       }}
