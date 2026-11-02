@@ -88,3 +88,105 @@
 .animate-steam-ambient {
   animation: takoSteamAmbient 4.2s ease-in-out infinite;
 }
+
+@keyframes foxLandBounce {
+  0% {
+    transform: scale(0.86, 1.14) translateY(-6px) rotate(4deg);
+  }
+  45% {
+    transform: scale(1.1, 0.92) translateY(3px) rotate(-3deg);
+  }
+  75% {
+    transform: scale(0.97, 1.03) translateY(-2px) rotate(1deg);
+  }
+  100% {
+    transform: scale(1, 1) translateY(0) rotate(0deg);
+  }
+}
+
+@keyframes bubblePopIn {
+  0% {
+    opacity: 0;
+    transform: translateX(18px) scale(0.75);
+  }
+  65% {
+    opacity: 1;
+    transform: translateX(-3px) scale(1.04);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+@keyframes trayBoardEnter {
+  0% {
+    opacity: 0;
+    transform: translateY(28px) scale(0.97);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes foxPuffRing {
+  0% {
+    opacity: 0.95;
+    transform: translate(-50%, -50%) scale(0.45);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(2.1);
+  }
+}
+
+.animate-fox-land {
+  animation: foxLandBounce 0.68s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.animate-bubble-pop {
+  transform-origin: right center;
+  animation: bubblePopIn 0.58s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.animate-tray-board-enter {
+  animation: trayBoardEnter 0.92s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.animate-fox-puff {
+  animation: foxPuffRing 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes takoBallSettle {
+  0% {
+    transform: scale(1.06) rotate(-2deg);
+  }
+  50% {
+    transform: scale(0.97) rotate(1deg);
+  }
+  100% {
+    transform: scale(1) rotate(0deg);
+  }
+}
+
+@keyframes takoModalItemUp {
+  0% {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-tako-ball-settle {
+  animation: takoBallSettle 0.52s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+.animate-tako-modal-item {
+  animation: takoModalItemUp 0.56s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+

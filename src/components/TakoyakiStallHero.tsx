@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useLayoutEffect } from 'react';
 import { TakoyakiCharacter } from '../types';
 import { Heart } from 'lucide-react';
 import takoyakiOriginalImg from '../assets/images/takoyaki_ball_original_1791612763230.jpg';
@@ -6,8 +6,14 @@ import takoyakiSpicyImg from '../assets/images/takoyaki_ball_spicy_1791612777471
 import { playTakoyakiSizzle } from '../utils/sizzleSound';
 import { useSiteAssets } from '../utils/caoBelAssets';
 
+export interface WelcomeTransitionOrigin {
+  foxRect: { top: number; left: number; width: number; height: number };
+  cardRect: { top: number; left: number; width: number; height: number };
+  id: number;
+}
+
 interface WelcomeHeroPageProps {
-  onEnterTrays: () => void;
+  onEnterTrays: (origin?: WelcomeTransitionOrigin) => void;
 }
 
 export const WelcomeHeroPage: React.FC<WelcomeHeroPageProps> = ({
@@ -17,6 +23,8 @@ export const WelcomeHeroPage: React.FC<WelcomeHeroPageProps> = ({
   const [showFoxDialogue, setShowFoxDialogue] = useState(false);
   const [isFoxSurprised, setIsFoxSurprised] = useState(false);
   const timerRef = useRef<number | null>(null);
+  const heroCardRef = useRef<HTMLDivElement | null>(null);
+  const foxHotspotRef = useRef<HTMLButtonElement | null>(null);
 
   useEffect(() => {
     return () => {
@@ -76,6 +84,34 @@ export const WelcomeHeroPage: React.FC<WelcomeHeroPageProps> = ({
     }, 600);
   };
 
+  const handleEnterClick = () => {
+    playFoxSurpriseSound();
+    playTakoyakiSizzle();
+
+    if (foxHotspotRef.current && heroCardRef.current) {
+      const fRect = foxHotspotRef.current.getBoundingClientRect();
+      const cRect = heroCardRef.current.getBoundingClientRect();
+      onEnterTrays({
+        foxRect: {
+          top: fRect.top,
+          left: fRect.left,
+          width: fRect.width,
+          height: fRect.height,
+        },
+        cardRect: {
+          top: cRect.top,
+          left: cRect.left,
+          width: cRect.width,
+          height: cRect.height,
+        },
+        id: Date.now(),
+      });
+      return;
+    }
+
+    onEnterTrays();
+  };
+
   return (
     <div
       className="max-w-[1320px] mx-auto px-4 sm:px-8 py-6 sm:py-10 flex items-center justify-center min-h-screen"
@@ -84,7 +120,10 @@ export const WelcomeHeroPage: React.FC<WelcomeHeroPageProps> = ({
       }}
     >
       {/* Dedicated Opening Hero Card */}
-      <div className="relative w-full h-[500px] sm:h-[600px] rounded-[32px] overflow-hidden shadow-xl border border-[#E6D6C1]">
+      <div
+        ref={heroCardRef}
+        className="relative w-full h-[500px] sm:h-[600px] rounded-[32px] overflow-hidden shadow-xl border border-[#E6D6C1]"
+      >
         <img
           src={assets.heroCover}
           onError={(e) => {
@@ -129,8 +168,8 @@ export const WelcomeHeroPage: React.FC<WelcomeHeroPageProps> = ({
             </p>
             <button
               type="button"
-              onClick={onEnterTrays}
-              className="px-7 py-3.5 rounded-full bg-[#E57C29] hover:bg-[#D46B1A] text-white font-semibold text-sm sm:text-base shadow-lg transition-transform duration-150 hover:scale-[1.03] cursor-pointer"
+              onClick={handleEnterClick}
+              className="px-7 py-3.5 rounded-full bg-[#E57C29] hover:bg-[#D46B1A] text-white font-semibold text-sm sm:text-base shadow-lg transition-transform duration-150 hover:scale-[1.03] active:scale-95 cursor-pointer"
             >
               Quẹo lựa takoyaki
             </button>
@@ -139,6 +178,7 @@ export const WelcomeHeroPage: React.FC<WelcomeHeroPageProps> = ({
 
         {/* Interactive Fox Chef Hotspot Trigger on Cover */}
         <button
+          ref={foxHotspotRef}
           type="button"
           onClick={(e) => {
             e.stopPropagation();
@@ -262,6 +302,8 @@ interface TakoyakiStallHeroProps {
   spicyCharacters: TakoyakiCharacter[];
   favorites: string[];
   onSelectCharacter: (character: TakoyakiCharacter) => void;
+  transitionOrigin?: WelcomeTransitionOrigin | null;
+  onTransitionComplete?: () => void;
 }
 
 export const TakoyakiStallHero: React.FC<TakoyakiStallHeroProps> = ({
@@ -269,11 +311,148 @@ export const TakoyakiStallHero: React.FC<TakoyakiStallHeroProps> = ({
   spicyCharacters,
   favorites,
   onSelectCharacter,
+  transitionOrigin,
+  onTransitionComplete,
 }) => {
   const { assets, fallbacks } = useSiteAssets();
   // On touch devices (phone/tablet), 1st tap reveals the character artwork & name, 2nd tap opens details
   const [revealedId, setRevealedId] = React.useState<string | null>(null);
   const lastPointerTypeRef = React.useRef<string>('mouse');
+
+  // Morph transition state from Welcome Cover big Fox -> Discover Helper Fox
+  const [isMorphingFox, setIsMorphingFox] = useState<boolean>(() =>
+    Boolean(transitionOrigin)
+  );
+  const [hasJustLanded, setHasJustLanded] = useState<boolean>(false);
+  const helperFoxContainerRef = useRef<HTMLDivElement | null>(null);
+  const flyingFoxRef = useRef<HTMLDivElement | null>(null);
+  const coverGhostRef = useRef<HTMLDivElement | null>(null);
+
+  useLayoutEffect(() => {
+    if (!transitionOrigin) {
+      setIsMorphingFox(false);
+      return;
+    }
+
+    setIsMorphingFox(true);
+    setHasJustLanded(false);
+
+    const targetEl = helperFoxContainerRef.current;
+    const flyingEl = flyingFoxRef.current;
+    const coverEl = coverGhostRef.current;
+
+    if (!targetEl || !flyingEl) {
+      setIsMorphingFox(false);
+      onTransitionComplete?.();
+      return;
+    }
+
+    const targetRect = targetEl.getBoundingClientRect();
+    const { foxRect } = transitionOrigin;
+
+    // Position the flying fox element directly over the target helper fox box
+    flyingEl.style.top = `${targetRect.top}px`;
+    flyingEl.style.left = `${targetRect.left}px`;
+    flyingEl.style.width = `${targetRect.width}px`;
+    flyingEl.style.height = `${targetRect.height}px`;
+
+    // Calculate center-to-center translation from target back to the big Fox on the cover
+    const startCx = foxRect.left + foxRect.width / 2;
+    const startCy = foxRect.top + foxRect.height / 2;
+    const endCx = targetRect.left + targetRect.width / 2;
+    const endCy = targetRect.top + targetRect.height / 2;
+
+    const dx = startCx - endCx;
+    const dy = startCy - endCy;
+
+    const bigFoxDiameter = Math.max(foxRect.width, foxRect.height) * 1.18;
+    const targetDiameter = Math.max(targetRect.width, 96);
+    const startScale = Math.max(1.5, Math.min(2.25, bigFoxDiameter / targetDiameter));
+
+    // 1. Dissolve and zoom the Welcome Cover Ghost card smoothly
+    let coverAnim: Animation | null = null;
+    if (coverEl && typeof coverEl.animate === 'function') {
+      coverAnim = coverEl.animate(
+        [
+          {
+            transform: 'scale(1)',
+            opacity: 0.96,
+            filter: 'blur(0px)',
+          },
+          {
+            transform: 'scale(1.09)',
+            opacity: 0,
+            filter: 'blur(6px)',
+          },
+        ],
+        {
+          duration: 850,
+          easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
+          fill: 'forwards',
+        }
+      );
+    }
+
+    // 2. Animate the Big Fox popping out from the cover stall and shrinking into the Helper Fox
+    let foxAnim: Animation | null = null;
+    if (typeof flyingEl.animate === 'function') {
+      foxAnim = flyingEl.animate(
+        [
+          {
+            transform: `translate3d(${dx}px, ${dy}px, 0) scale(${startScale * 0.88}) rotate(-6deg)`,
+            opacity: 0.4,
+            offset: 0,
+          },
+          {
+            transform: `translate3d(${dx * 0.86}px, ${dy * 0.86 - 30}px, 0) scale(${startScale * 1.1}) rotate(-10deg)`,
+            opacity: 1,
+            offset: 0.24,
+          },
+          {
+            transform: `translate3d(${dx * 0.32}px, ${dy * 0.22 - 36}px, 0) scale(${1 + (startScale - 1) * 0.4}) rotate(7deg)`,
+            opacity: 1,
+            offset: 0.65,
+          },
+          {
+            transform: `translate3d(${dx * 0.04}px, -5px, 0) scale(0.96) rotate(-2deg)`,
+            opacity: 1,
+            offset: 0.9,
+          },
+          {
+            transform: 'translate3d(0px, 0px, 0) scale(1) rotate(0deg)',
+            opacity: 1,
+            offset: 1,
+          },
+        ],
+        {
+          duration: 1180,
+          easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
+          fill: 'forwards',
+        }
+      );
+    }
+
+    let finished = false;
+    const finishTransition = () => {
+      if (finished) return;
+      finished = true;
+      setIsMorphingFox(false);
+      setHasJustLanded(true);
+      onTransitionComplete?.();
+    };
+
+    if (foxAnim) {
+      foxAnim.onfinish = finishTransition;
+    }
+
+    const fallbackTimer = window.setTimeout(finishTransition, 1240);
+
+    return () => {
+      window.clearTimeout(fallbackTimer);
+      coverAnim?.cancel();
+      foxAnim?.cancel();
+    };
+  }, [transitionOrigin, onTransitionComplete]);
 
   // 3-second peek/flip all takoyaki balls state with Chef Fox helper
   const [isAllFlipped, setIsAllFlipped] = React.useState(false);
@@ -355,7 +534,71 @@ export const TakoyakiStallHero: React.FC<TakoyakiStallHeroProps> = ({
   );
 
   return (
-    <div className="max-w-[1320px] mx-auto px-3 sm:px-6 pt-4 sm:pt-6 pb-12">
+    <div className="max-w-[1320px] mx-auto px-3 sm:px-6 pt-4 sm:pt-6 pb-12 relative">
+      {/* =================================================================== */}
+      {/* SMOOTH MORPH OVERLAY: WELCOME COVER DISSOLVE + BIG FOX SHRINKING    */}
+      {/* =================================================================== */}
+      {isMorphingFox && transitionOrigin && (
+        <div className="fixed inset-0 z-50 pointer-events-none overflow-hidden">
+          {/* Dissolving Welcome Cover Card */}
+          <div
+            ref={coverGhostRef}
+            style={{
+              position: 'fixed',
+              top: transitionOrigin.cardRect.top,
+              left: transitionOrigin.cardRect.left,
+              width: transitionOrigin.cardRect.width,
+              height: transitionOrigin.cardRect.height,
+            }}
+            className="rounded-[32px] overflow-hidden shadow-2xl border border-[#E6D6C1] origin-center"
+          >
+            <img
+              src={assets.heroCover}
+              onError={(e) => {
+                if (e.currentTarget.src !== fallbacks.heroCover) {
+                  e.currentTarget.src = fallbacks.heroCover;
+                }
+              }}
+              alt=""
+              className="w-full h-full object-cover object-center"
+            />
+          </div>
+
+          {/* Warm Steam / Golden Puff Ring at Big Fox Launch Point */}
+          <div
+            style={{
+              position: 'fixed',
+              top: transitionOrigin.foxRect.top + transitionOrigin.foxRect.height / 2,
+              left: transitionOrigin.foxRect.left + transitionOrigin.foxRect.width / 2,
+              width: Math.max(transitionOrigin.foxRect.width, 130),
+              height: Math.max(transitionOrigin.foxRect.height, 130),
+            }}
+            className="rounded-full border-4 border-[#FFE0B2] bg-[#FFF3E0]/55 shadow-[0_0_40px_rgba(229,124,41,0.6)] animate-fox-puff"
+          />
+
+          {/* Flying Big Fox Shrinking into the Helper Fox */}
+          <div
+            ref={flyingFoxRef}
+            style={{
+              position: 'fixed',
+              willChange: 'transform, opacity',
+            }}
+            className="flex items-center justify-center"
+          >
+            <img
+              src={assets.foxChef}
+              onError={(e) => {
+                if (e.currentTarget.src !== fallbacks.foxChef) {
+                  e.currentTarget.src = fallbacks.foxChef;
+                }
+              }}
+              alt="Đầu bếp Cáo Bel đang bay ra hỗ trợ"
+              className="w-full h-full object-contain filter drop-shadow-[0_18px_28px_rgba(58,30,14,0.42)]"
+            />
+          </div>
+        </div>
+      )}
+
       {/* =================================================================== */}
       {/* CHEF FOX HELPER (IN THE LIGHT BACKGROUND AREA ABOVE WOODEN BOARD)   */}
       {/* =================================================================== */}
@@ -369,6 +612,12 @@ export const TakoyakiStallHero: React.FC<TakoyakiStallHeroProps> = ({
           {/* Speech Bubble */}
           <div
             className={`relative px-4 sm:px-5 py-2.5 sm:py-3 rounded-2xl rounded-tr-xs shadow-md border-2 transition-all duration-300 ${
+              isMorphingFox
+                ? 'opacity-0 scale-75'
+                : hasJustLanded
+                ? 'animate-bubble-pop'
+                : ''
+            } ${
               isAllFlipped
                 ? 'bg-[#FFF7ED] border-[#E57C29] text-[#9A3412] ring-2 ring-[#FED7AA]'
                 : 'bg-[#FFFDF9] border-[#E6D6C1] group-hover:border-[#E57C29] text-[#432314]'
@@ -407,7 +656,12 @@ export const TakoyakiStallHero: React.FC<TakoyakiStallHeroProps> = ({
           </div>
 
           {/* Bigger Chef Fox Mascot Image */}
-          <div className="relative shrink-0">
+          <div
+            ref={helperFoxContainerRef}
+            className={`relative shrink-0 ${
+              isMorphingFox ? 'opacity-0' : hasJustLanded ? 'animate-fox-land' : ''
+            }`}
+          >
             <img
               src={assets.foxChef}
               onError={(e) => {
@@ -433,11 +687,12 @@ export const TakoyakiStallHero: React.FC<TakoyakiStallHeroProps> = ({
         </button>
       </div>
 
+
       {/* =================================================================== */}
       {/* WOODEN COUNTER BOARD HOLDING ONLY THE TWO CAST-IRON TRAYS           */}
       {/* =================================================================== */}
       <div
-        className="wood-board-surface rounded-[28px] sm:rounded-[32px] p-4 sm:p-7 md:p-9 border border-[#C6A175]"
+        className="wood-board-surface animate-tray-board-enter rounded-[28px] sm:rounded-[32px] p-4 sm:p-7 md:p-9 border border-[#C6A175]"
         style={{
           boxShadow:
             'inset 0 2px 3px rgba(255, 250, 240, 0.55), inset 0 -10px 18px rgba(102, 68, 36, 0.22), 0 10px 0 #B68F62, 0 18px 34px rgba(58, 36, 18, 0.16)',
@@ -558,6 +813,7 @@ export const TakoyakiStallHero: React.FC<TakoyakiStallHeroProps> = ({
                     <button
                       key={char.id}
                       type="button"
+                      data-takoyaki-ball-id={char.id}
                       onPointerDown={(e) => {
                         lastPointerTypeRef.current = e.pointerType;
                       }}
@@ -750,6 +1006,7 @@ export const TakoyakiStallHero: React.FC<TakoyakiStallHeroProps> = ({
                     <button
                       key={char.id}
                       type="button"
+                      data-takoyaki-ball-id={char.id}
                       onPointerDown={(e) => {
                         lastPointerTypeRef.current = e.pointerType;
                       }}

@@ -28,7 +28,11 @@ import {
   ActiveTab,
 } from './types';
 import { Navbar } from './components/Navbar';
-import { WelcomeHeroPage, TakoyakiStallHero } from './components/TakoyakiStallHero';
+import {
+  WelcomeHeroPage,
+  TakoyakiStallHero,
+  WelcomeTransitionOrigin,
+} from './components/TakoyakiStallHero';
 import { CharacterDetailModal } from './components/CharacterDetailModal';
 import { TakoyakiKitchen } from './components/TakoyakiKitchen';
 import { TakoyakiTraySection } from './components/TakoyakiTraySection';
@@ -77,6 +81,8 @@ export default function App() {
   const [isRefreshingFeedbacks, setIsRefreshingFeedbacks] = useState<boolean>(false);
   // Start on the outer welcome page ('welcome')
   const [activeTab, setActiveTab] = useState<ActiveTab>('welcome');
+  const [welcomeTransitionOrigin, setWelcomeTransitionOrigin] =
+    useState<WelcomeTransitionOrigin | null>(null);
   const [selectedCharacter, setSelectedCharacter] = useState<TakoyakiCharacter | null>(null);
   const [editingCharacter, setEditingCharacter] = useState<TakoyakiCharacter | null>(null);
 
@@ -1059,7 +1065,11 @@ export default function App() {
         {/* DEDICATED OPENING PAGE: Hero Stall Banner with "Quẹo lựa takoyaki" */}
         {activeTab === 'welcome' && (
           <WelcomeHeroPage
-            onEnterTrays={() => setActiveTab('discover')}
+            onEnterTrays={(origin) => {
+              window.scrollTo({ top: 0, behavior: 'instant' as ScrollBehavior });
+              setWelcomeTransitionOrigin(origin || null);
+              setActiveTab('discover');
+            }}
           />
         )}
 
@@ -1070,6 +1080,8 @@ export default function App() {
             spicyCharacters={spicyCharacters}
             favorites={favorites}
             onSelectCharacter={handleSelectCharacter}
+            transitionOrigin={welcomeTransitionOrigin}
+            onTransitionComplete={() => setWelcomeTransitionOrigin(null)}
           />
         )}
 

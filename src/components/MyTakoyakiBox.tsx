@@ -607,6 +607,7 @@ export const MyTakoyakiBox: React.FC<MyTakoyakiBoxProps> = ({
                           {/* Takoyaki Ball with Uploaded Character Artwork (Reveals Character on Hover or 1st Tap) */}
                           <button
                             type="button"
+                            data-takoyaki-ball-id={char.id}
                             onPointerDown={(e) => {
                               lastPointerTypeRef.current = e.pointerType;
                             }}
