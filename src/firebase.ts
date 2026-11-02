@@ -25,7 +25,12 @@ import {
   increment,
   serverTimestamp,
 } from 'firebase/firestore';
-import { TakoyakiCharacter, FeedbackReview, SpicyWhitelistItem } from './types';
+import {
+  TakoyakiCharacter,
+  FeedbackReview,
+  SpicyWhitelistItem,
+  AgeVerificationRequest,
+} from './types';
 import firebaseConfig from '../firebase-applet-config.json';
 
 const app = initializeApp(firebaseConfig);
@@ -512,5 +517,338 @@ export async function checkSpicyEmailInFirestore(email: string): Promise<boolean
     return false;
   }
 }
+
+// =========================================================================
+// 18+ PHOTO AGE VERIFICATION CLOUD PERSISTENCE (FIRESTORE + SERVER + LOCAL)
+// =========================================================================
+
+export async function saveVerificationToFirestore(
+  record: AgeVerificationRequest
+): Promise<void> {
+  const safeId = (record.id || `verify_${record.userId}`).slice(0, 128);
+  if (!safeId) return;
+  try {
+    await setDoc(doc(db, 'verifications', safeId), {
+      id: safeId,
+      userId: record.userId || '',
+      userEmail: (record.userEmail || '').trim().toLowerCase(),
+      userName: record.userName || record.userEmail || 'Thực khách',
+      userPhoto: record.userPhoto || '',
+      documentImage: record.documentImage || '',
+      documentName: record.documentName || '',
+      note: record.note || '',
+      status: record.status || 'pending',
+      rejectionReason: record.rejectionReason || '',
+      submittedAt: record.submittedAt || new Date().toISOString(),
+      reviewedAt: record.reviewedAt || '',
+      reviewedBy: record.reviewedBy || '',
+    });
+  } catch (error) {
+    console.warn('Firestore verification save notice:', error);
+  }
+}
+
+export async function fetchVerificationsFromFirestore(): Promise<AgeVerificationRequest[]> {
+  const currentEmail = auth.currentUser?.email?.trim().toLowerCase();
+  if (currentEmail !== CREATOR_ADMIN_EMAIL.toLowerCase()) {
+    return [];
+  }
+  try {
+    const snap = await getDocs(collection(db, 'verifications'));
+    const list: AgeVerificationRequest[] = [];
+    snap.forEach((d) => {
+      const data = d.data();
+      if (data && data.userId && data.userEmail) {
+        list.push({
+          id: data.id || d.id,
+          userId: String(data.userId),
+          userEmail: String(data.userEmail).trim().toLowerCase(),
+          userName: String(data.userName || data.userEmail),
+          userPhoto: data.userPhoto || undefined,
+          documentImage: String(data.documentImage || ''),
+          documentName: data.documentName || undefined,
+          note: data.note || undefined,
+          status:
+            data.status === 'verified' || data.status === 'rejected'
+              ? data.status
+              : 'pending',
+          rejectionReason: data.rejectionReason || undefined,
+          submittedAt: data.submittedAt || new Date().toISOString(),
+          reviewedAt: data.reviewedAt || undefined,
+          reviewedBy: data.reviewedBy || undefined,
+        });
+      }
+    });
+    list.sort(
+      (a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime()
+    );
+    return list;
+  } catch (error) {
+    console.warn('Firestore verifications fetch notice:', error);
+    return [];
+  }
+}
+
+export async function fetchUserVerificationFromFirestore(
+  userId: string,
+  userEmail?: string
+): Promise<AgeVerificationRequest | null> {
+  if (!userId) return null;
+  try {
+    const directId = `verify_${userId}`.slice(0, 128);
+    const directSnap = await getDoc(doc(db, 'verifications', directId));
+    if (directSnap.exists()) {
+      const data = directSnap.data();
+      const docEmail = String(data.userEmail || '').trim().toLowerCase();
+      const targetEmail = (userEmail || '').trim().toLowerCase();
+      if (targetEmail && docEmail && docEmail !== targetEmail) {
+        return null;
+      }
+      return {
+        id: data.id || directSnap.id,
+        userId: String(data.userId || userId),
+        userEmail: docEmail || targetEmail,
+        userName: String(data.userName || data.userEmail || 'Thực khách'),
+        userPhoto: data.userPhoto || undefined,
+        documentImage: String(data.documentImage || ''),
+        documentName: data.documentName || undefined,
+        note: data.note || undefined,
+        status:
+          data.status === 'verified' || data.status === 'rejected'
+            ? data.status
+            : 'pending',
+        rejectionReason: data.rejectionReason || undefined,
+        submittedAt: data.submittedAt || new Date().toISOString(),
+        reviewedAt: data.reviewedAt || undefined,
+        reviewedBy: data.reviewedBy || undefined,
+      };
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+export async function updateVerificationStatusInFirestore(
+  id: string,
+  status: 'verified' | 'rejected' | 'pending',
+  rejectionReason?: string,
+  reviewedBy?: string
+): Promise<void> {
+  const safeId = id.slice(0, 128);
+  if (!safeId) return;
+  try {
+    await updateDoc(doc(db, 'verifications', safeId), {
+      status,
+      rejectionReason: status === 'rejected' ? rejectionReason || '' : '',
+      reviewedAt: new Date().toISOString(),
+      reviewedBy: reviewedBy || 'Cáo Bel (CRT)',
+    });
+  } catch (error) {
+    console.warn('Firestore verification status update notice:', error);
+  }
+}
+
+export async function deleteVerificationFromFirestore(id: string): Promise<void> {
+  const safeId = id.slice(0, 128);
+  if (!safeId) return;
+  try {
+    await deleteDoc(doc(db, 'verifications', safeId));
+  } catch (error) {
+    console.warn('Firestore verification delete notice:', error);
+  }
+}
+
+// =========================================================================
+// ADMIN NOTIFICATION SETTINGS & INSTANT ALERTS (GMAIL + DISCORD WEBHOOK)
+// =========================================================================
+
+export interface AdminNotificationSettings {
+  emailEnabled: boolean;
+  discordWebhookUrl: string;
+  updatedAt?: string;
+}
+
+const NOTIFICATION_CONFIG_DOC_ID = '__notification_config__';
+const NOTIFICATION_CACHE_KEY = 'takoyaki_admin_notify_settings_v1';
+
+export async function fetchNotificationSettingsFromFirestore(): Promise<AdminNotificationSettings> {
+  let cachedSettings: AdminNotificationSettings = {
+    emailEnabled: true,
+    discordWebhookUrl: '',
+  };
+  try {
+    const localRaw = localStorage.getItem(NOTIFICATION_CACHE_KEY);
+    if (localRaw) {
+      const parsed = JSON.parse(localRaw);
+      if (parsed && typeof parsed === 'object') {
+        cachedSettings = {
+          emailEnabled: parsed.emailEnabled !== false,
+          discordWebhookUrl: String(parsed.discordWebhookUrl || ''),
+          updatedAt: parsed.updatedAt,
+        };
+      }
+    }
+  } catch {
+    // Ignore localStorage error
+  }
+
+  try {
+    const snap = await getDoc(doc(db, 'spicyWhitelist', NOTIFICATION_CONFIG_DOC_ID));
+    if (snap.exists()) {
+      const data = snap.data();
+      const cloudSettings: AdminNotificationSettings = {
+        emailEnabled: data.emailEnabled !== false,
+        discordWebhookUrl: String(data.discordWebhookUrl || '').trim(),
+        updatedAt: String(data.updatedAt || ''),
+      };
+      try {
+        localStorage.setItem(NOTIFICATION_CACHE_KEY, JSON.stringify(cloudSettings));
+      } catch {
+        // Ignore
+      }
+      return cloudSettings;
+    }
+  } catch (error) {
+    console.warn('Firestore notification config fetch notice:', error);
+  }
+
+  return cachedSettings;
+}
+
+export async function saveNotificationSettingsToFirestore(
+  settings: AdminNotificationSettings
+): Promise<void> {
+  const payload = {
+    emailEnabled: settings.emailEnabled !== false,
+    discordWebhookUrl: (settings.discordWebhookUrl || '').trim(),
+    updatedAt: new Date().toISOString(),
+  };
+
+  try {
+    localStorage.setItem(NOTIFICATION_CACHE_KEY, JSON.stringify(payload));
+  } catch {
+    // Ignore
+  }
+
+  try {
+    await setDoc(doc(db, 'spicyWhitelist', NOTIFICATION_CONFIG_DOC_ID), payload);
+  } catch (error) {
+    console.warn('Firestore notification config save notice:', error);
+  }
+}
+
+/**
+ * Automatically notifies Cáo Bel (hoangyendo1212@gmail.com) via Gmail (FormSubmit AJAX)
+ * and optional Discord Webhook whenever a customer submits an 18+ verification photo.
+ */
+export async function sendAdminVerificationNotification(
+  record: AgeVerificationRequest,
+  isTest = false
+): Promise<{ emailSent: boolean; discordSent: boolean }> {
+  const settings = await fetchNotificationSettingsFromFirestore();
+  let emailSent = false;
+  let discordSent = false;
+
+  const submittedTime = new Date(record.submittedAt || Date.now()).toLocaleString('vi-VN');
+  const shopUrl =
+    typeof window !== 'undefined' && window.location.origin
+      ? window.location.href
+      : 'https://takorenes.github.io/Takoyaki-Cao-Bel/';
+
+  // 1. Send automatic Email notification to hoangyendo1212@gmail.com
+  if (settings.emailEnabled !== false) {
+    try {
+      const res = await fetch(`https://formsubmit.co/ajax/${CREATOR_ADMIN_EMAIL}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        body: JSON.stringify({
+          _subject: isTest
+            ? '🦊 [Test Thông Báo] Tiệm Bánh Takoyaki Cáo Bel đã kết nối Gmail!'
+            : `🦊 [Tiệm Cáo Bel] ${record.userName} vừa gửi ảnh xác minh 18+!`,
+          _template: 'table',
+          _captcha: 'false',
+          Trạng_thái: isTest
+            ? 'Thư kiểm tra kết nối thông báo tự động'
+            : '⏳ Đang chờ Cáo Bel duyệt ảnh 18+',
+          Thực_khách: record.userName || 'Thực khách',
+          Email_khách: record.userEmail,
+          Lời_nhắn: record.note || 'Không có lời nhắn',
+          Thời_gian_gửi: submittedTime,
+          Link_vào_duyệt_ngay: shopUrl,
+        }),
+      });
+      if (res.ok) {
+        emailSent = true;
+      }
+    } catch (error) {
+      console.warn('Email notification notice:', error);
+    }
+  }
+
+  // 2. Send instant Discord Webhook notification if configured
+  if (
+    settings.discordWebhookUrl &&
+    settings.discordWebhookUrl.startsWith('https://discord')
+  ) {
+    try {
+      const discordRes = await fetch(settings.discordWebhookUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: 'Tiệm Bánh Cáo Bel 🦊🐙',
+          embeds: [
+            {
+              title: isTest
+                ? '🔔 Test thông báo Discord thành công!'
+                : '🌶️ Có thực khách vừa gửi ảnh xác minh 18+!',
+              description: isTest
+                ? 'Kênh Discord của Cáo Bel đã sẵn sàng nhận thông báo mỗi khi có khách gửi ảnh xác minh độ tuổi.'
+                : `Thực khách **${record.userName}** (\`${record.userEmail}\`) vừa gửi ảnh minh chứng năm sinh 18+ để mở khóa khay Vị Cay Tê.`,
+              color: 0xe57c29,
+              fields: [
+                {
+                  name: '👤 Thực khách',
+                  value: `${record.userName || 'Khách'} (${record.userEmail})`,
+                  inline: true,
+                },
+                {
+                  name: '🕒 Thời gian',
+                  value: submittedTime,
+                  inline: true,
+                },
+                {
+                  name: '💬 Lời nhắn',
+                  value: record.note || 'Không có lời nhắn',
+                  inline: false,
+                },
+                {
+                  name: '🔗 Duyệt ảnh tại quầy',
+                  value: `[Bấm vào đây để mở Tiệm Cáo Bel & Duyệt 18+](${shopUrl})`,
+                  inline: false,
+                },
+              ],
+              footer: {
+                text: 'Tiệm Bánh Takoyaki Cáo Bel · Hệ thống báo duyệt 18+ tự động',
+              },
+            },
+          ],
+        }),
+      });
+      if (discordRes.ok) {
+        discordSent = true;
+      }
+    } catch (error) {
+      console.warn('Discord webhook notice:', error);
+    }
+  }
+
+  return { emailSent, discordSent };
+}
+
+
 
 

@@ -4,12 +4,16 @@ import { Heart } from 'lucide-react';
 import takoyakiOriginalImg from '../assets/images/takoyaki_ball_original_1791612763230.jpg';
 import takoyakiSpicyImg from '../assets/images/takoyaki_ball_spicy_1791612777471.jpg';
 import { playTakoyakiSizzle } from '../utils/sizzleSound';
+import { useSiteAssets } from '../utils/caoBelAssets';
 
 interface WelcomeHeroPageProps {
   onEnterTrays: () => void;
 }
 
-export const WelcomeHeroPage: React.FC<WelcomeHeroPageProps> = ({ onEnterTrays }) => {
+export const WelcomeHeroPage: React.FC<WelcomeHeroPageProps> = ({
+  onEnterTrays,
+}) => {
+  const { assets, fallbacks } = useSiteAssets();
   const [showFoxDialogue, setShowFoxDialogue] = useState(false);
   const [isFoxSurprised, setIsFoxSurprised] = useState(false);
   const timerRef = useRef<number | null>(null);
@@ -82,7 +86,12 @@ export const WelcomeHeroPage: React.FC<WelcomeHeroPageProps> = ({ onEnterTrays }
       {/* Dedicated Opening Hero Card */}
       <div className="relative w-full h-[500px] sm:h-[600px] rounded-[32px] overflow-hidden shadow-xl border border-[#E6D6C1]">
         <img
-          src="/assets/aistudio/image_5644bac5.png"
+          src={assets.heroCover}
+          onError={(e) => {
+            if (e.currentTarget.src !== fallbacks.heroCover) {
+              e.currentTarget.src = fallbacks.heroCover;
+            }
+          }}
           alt="Xe Takoyaki Cáo Bel bên bờ biển"
           referrerPolicy="no-referrer"
           className="w-full h-full object-cover object-center"
@@ -136,7 +145,7 @@ export const WelcomeHeroPage: React.FC<WelcomeHeroPageProps> = ({ onEnterTrays }
             handleFoxClick();
           }}
           aria-label="Bấm vào Cáo Bel trên ảnh bìa"
-          className={`group absolute rounded-full cursor-pointer z-20 transition-all duration-200 outline-none select-none left-[58%] sm:left-[56%] md:left-[58%] lg:left-[59%] top-[34%] sm:top-[35%] w-[32%] sm:w-[22%] md:w-[20%] lg:w-[18%] h-[34%] sm:h-[32%] min-w-[100px] min-h-[100px] ${
+          className={`group absolute rounded-full cursor-pointer z-20 transition-all duration-200 outline-none select-none left-[58%] sm:left-[56%] md:left-[58%] lg:left-[59%] top-[34%] sm:top-[35%] w-[32%] sm:w-[22%] md:w-[20%] lg:w-[18%] h-[34%] sm:h-[32%] min-w-[100px] min-h-[100px] flex items-center justify-center ${
             isFoxSurprised
               ? 'scale-110 -rotate-6'
               : 'hover:scale-105 active:scale-95'
@@ -261,6 +270,7 @@ export const TakoyakiStallHero: React.FC<TakoyakiStallHeroProps> = ({
   favorites,
   onSelectCharacter,
 }) => {
+  const { assets, fallbacks } = useSiteAssets();
   // On touch devices (phone/tablet), 1st tap reveals the character artwork & name, 2nd tap opens details
   const [revealedId, setRevealedId] = React.useState<string | null>(null);
   const lastPointerTypeRef = React.useRef<string>('mouse');
@@ -399,7 +409,12 @@ export const TakoyakiStallHero: React.FC<TakoyakiStallHeroProps> = ({
           {/* Bigger Chef Fox Mascot Image */}
           <div className="relative shrink-0">
             <img
-              src="/assets/aistudio/download__2__a08e50a0.png"
+              src={assets.foxChef}
+              onError={(e) => {
+                if (e.currentTarget.src !== fallbacks.foxChef) {
+                  e.currentTarget.src = fallbacks.foxChef;
+                }
+              }}
               alt="Đầu bếp Cáo Bel"
               className={`w-24 h-24 sm:w-28 sm:h-28 md:w-36 md:h-36 object-contain filter drop-shadow-lg transition-all duration-300 ${
                 isAllFlipped

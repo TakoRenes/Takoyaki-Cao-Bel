@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { X, Sparkles, Heart, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { useSiteAssets } from '../utils/caoBelAssets';
 
 interface FoxJumpscareProps {
   isOpen: boolean;
@@ -220,6 +221,7 @@ interface FloatingHeart {
 }
 
 export const FoxJumpscare: React.FC<FoxJumpscareProps> = ({ isOpen, onClose }) => {
+  const { assets, fallbacks } = useSiteAssets();
   const [isShaking, setIsShaking] = useState(false);
   const [petProgress, setPetProgress] = useState(0); // 0 to 100
   const [isCalmedDown, setIsCalmedDown] = useState(false);
@@ -480,7 +482,12 @@ export const FoxJumpscare: React.FC<FoxJumpscareProps> = ({ isOpen, onClose }) =
 
           {/* FOX IMAGE */}
           <img
-            src="/assets/aistudio/download__1__a6655be3.png"
+            src={assets.foxLogo}
+            onError={(e) => {
+              if (e.currentTarget.src !== fallbacks.foxLogo) {
+                e.currentTarget.src = fallbacks.foxLogo;
+              }
+            }}
             alt="Cáo Bel Takoyaki"
             className={`relative z-10 w-full h-full object-contain filter drop-shadow-[0_15px_25px_rgba(67,35,20,0.5)] transition-all ${
               isCalmedDown

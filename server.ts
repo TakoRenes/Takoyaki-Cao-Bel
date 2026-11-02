@@ -19,6 +19,8 @@ const DATA_DIR = path.join(__dirname, 'data');
 const DB_FILE = path.join(DATA_DIR, 'characters.json');
 const SPICY_WHITELIST_FILE = path.join(DATA_DIR, 'spicy_whitelist.json');
 const FEEDBACKS_FILE = path.join(DATA_DIR, 'feedbacks.json');
+const SITE_ASSETS_FILE = path.join(DATA_DIR, 'site_assets.json');
+const PUBLIC_AISTUDIO_DIR = path.join(__dirname, 'public', 'assets', 'aistudio');
 const CREATOR_EMAIL = 'hoangyendo1212@gmail.com';
 
 // Initialize server-side Firestore client for automatic cloud backup & startup hydration
@@ -1161,11 +1163,12 @@ async function startServer() {
 
     const record: StoredVerification = {
       id:
-        existingIdx !== -1
+        (typeof body.id === 'string' && body.id.trim()) ||
+        (existingIdx !== -1
           ? db.verifications[existingIdx].id
-          : `verify_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+          : `verify_${body.userId}`),
       userId: body.userId,
-      userEmail: String(body.userEmail).trim(),
+      userEmail: String(body.userEmail).trim().toLowerCase(),
       userName: String(body.userName || body.userEmail).trim(),
       userPhoto: typeof body.userPhoto === 'string' ? body.userPhoto : undefined,
       documentImage: typeof body.documentImage === 'string' ? body.documentImage : '',
@@ -1218,7 +1221,7 @@ async function startServer() {
       db.verifications = [];
     }
 
-    const idx = db.verifications.findIndex((v) => v.id === id);
+    const idx = db.verifications.findIndex((v) => v.id === id || `verify_${v.userId}` === id);
     if (idx === -1) {
       res.status(404).json({ error: 'Verification request not found.' });
       return;
@@ -1234,8 +1237,27 @@ async function startServer() {
     };
 
     db.verifications[idx] = updated;
+
+    // When approved as 18+ verified, automatically add their email to spicyWhitelist
+    if (status === 'verified' && updated.userEmail) {
+      const cleanEmail = updated.userEmail.trim().toLowerCase();
+      if (!Array.isArray(db.spicyWhitelist)) {
+        db.spicyWhitelist = [];
+      }
+      const alreadyInWhitelist = db.spicyWhitelist.some(
+        (w) => w.email.trim().toLowerCase() === cleanEmail
+      );
+      if (!alreadyInWhitelist) {
+        db.spicyWhitelist.unshift({
+          email: cleanEmail,
+          addedAt: now,
+          note: `Duyệt ảnh 18+ (${updated.userName || cleanEmail})`,
+        });
+      }
+    }
+
     saveDatabase(db);
-    res.json({ verification: updated });
+    res.json({ verification: updated, whitelist: db.spicyWhitelist });
   });
 
   // DELETE a verification request
@@ -1245,7 +1267,9 @@ async function startServer() {
     if (!Array.isArray(db.verifications)) {
       db.verifications = [];
     }
-    db.verifications = db.verifications.filter((v) => v.id !== id);
+    db.verifications = db.verifications.filter(
+      (v) => v.id !== id && `verify_${v.userId}` !== id
+    );
     saveDatabase(db);
     res.json({ success: true });
   });
@@ -1275,8 +1299,11 @@ async function startServer() {
     }
 
     const list = db.spicyWhitelist || [];
-    const isAllowed = list.some((item) => item.email.toLowerCase().trim() === rawEmail);
-    res.json({ allowed: isAllowed, email: rawEmail });
+    const inWhitelist = list.some((item) => item.email.toLowerCase().trim() === rawEmail);
+    const inVerifiedPhotos = (db.verifications || []).some(
+      (v) => v.userEmail.toLowerCase().trim() === rawEmail && v.status === 'verified'
+    );
+    res.json({ allowed: inWhitelist || inVerifiedPhotos, email: rawEmail });
   });
 
   // POST add email to spicy whitelist (Creator only)
@@ -1382,6 +1409,90 @@ async function startServer() {
 
     res.json({ success: true, addedCount, whitelist: db.spicyWhitelist });
   });
+
+  // =========================================================================
+  // LOCKED SITE ASSETS (CÁO BEL LOGO & CHEF MASCOT SELF-HEALING BACKUP)
+  // =========================================================================
+  try {
+    const srcImagesDir = path.join(__dirname, 'src', 'assets', 'images');
+    if (!fs.existsSync(PUBLIC_AISTUDIO_DIR)) {
+      fs.mkdirSync(PUBLIC_AISTUDIO_DIR, { recursive: true });
+    }
+    if (!fs.existsSync(srcImagesDir)) {
+      fs.mkdirSync(srcImagesDir, { recursive: true });
+    }
+
+    const lockedPairs = [
+      {
+        key: 'heroCover',
+        srcFile: path.join(srcImagesDir, 'caobel_hero_cover_locked.png'),
+        pubFile: path.join(PUBLIC_AISTUDIO_DIR, 'image_5644bac5.png'),
+      },
+      {
+        key: 'foxLogo',
+        srcFile: path.join(srcImagesDir, 'caobel_fox_logo_locked.png'),
+        pubFile: path.join(PUBLIC_AISTUDIO_DIR, 'download__1__a6655be3.png'),
+      },
+      {
+        key: 'foxChef',
+        srcFile: path.join(srcImagesDir, 'caobel_fox_chef_locked.png'),
+        pubFile: path.join(PUBLIC_AISTUDIO_DIR, 'download__2__a08e50a0.png'),
+      },
+    ];
+
+    let jsonBackup: Record<string, string> = {};
+    if (fs.existsSync(SITE_ASSETS_FILE)) {
+      try {
+        jsonBackup = JSON.parse(fs.readFileSync(SITE_ASSETS_FILE, 'utf-8'));
+      } catch {
+        jsonBackup = {};
+      }
+    }
+
+    let jsonUpdated = false;
+    for (const item of lockedPairs) {
+      if (fs.existsSync(item.srcFile) && !fs.existsSync(item.pubFile)) {
+        fs.copyFileSync(item.srcFile, item.pubFile);
+      } else if (fs.existsSync(item.pubFile) && !fs.existsSync(item.srcFile)) {
+        fs.copyFileSync(item.pubFile, item.srcFile);
+      } else if (!fs.existsSync(item.srcFile) && !fs.existsSync(item.pubFile) && jsonBackup[item.key]) {
+        const match = jsonBackup[item.key].match(/^data:image\/[a-zA-Z0-9+.-]+;base64,(.+)$/);
+        if (match && match[1]) {
+          const buf = Buffer.from(match[1], 'base64');
+          fs.writeFileSync(item.srcFile, buf);
+          fs.writeFileSync(item.pubFile, buf);
+        }
+      }
+
+      if (!jsonBackup[item.key] && fs.existsSync(item.srcFile)) {
+        const buf = fs.readFileSync(item.srcFile);
+        jsonBackup[item.key] = `data:image/png;base64,${buf.toString('base64')}`;
+        jsonUpdated = true;
+      }
+    }
+
+    if (jsonUpdated) {
+      fs.writeFileSync(SITE_ASSETS_FILE, JSON.stringify(jsonBackup, null, 2), 'utf-8');
+    }
+  } catch {
+    // Non-blocking self-healing check
+  }
+
+  app.get('/api/site-assets', (_req, res) => {
+    try {
+      if (fs.existsSync(SITE_ASSETS_FILE)) {
+        const raw = fs.readFileSync(SITE_ASSETS_FILE, 'utf-8');
+        res.json({ assets: JSON.parse(raw) });
+        return;
+      }
+    } catch {
+      // Ignore
+    }
+    res.json({ assets: {} });
+  });
+
+  // Serve /data/*.json for static fallback parity
+  app.use('/data', express.static(DATA_DIR));
 
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({

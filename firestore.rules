@@ -71,5 +71,15 @@ service cloud.firestore {
       allow get, list: if true;
       allow create, update, delete: if isValidId(emailId) && isCreatorAdmin();
     }
+
+    match /verifications/{verificationId} {
+      allow get: if isCreatorAdmin() || (isSignedIn() && verificationId == "verify_" + request.auth.uid);
+      allow list: if isCreatorAdmin();
+      allow create, update: if isValidId(verificationId) && (
+        isCreatorAdmin() ||
+        (isSignedIn() && verificationId == "verify_" + request.auth.uid && incoming().status == "pending")
+      );
+      allow delete: if isValidId(verificationId) && isCreatorAdmin();
+    }
   }
 }

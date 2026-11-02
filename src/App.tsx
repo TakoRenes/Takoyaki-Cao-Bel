@@ -16,6 +16,9 @@ import {
   saveFeedbackToFirestore,
   incrementFeedbackHelpfulInFirestore,
   deleteFeedbackFromFirestore,
+  checkSpicyEmailInFirestore,
+  fetchUserVerificationFromFirestore,
+  fetchVerificationsFromFirestore,
 } from './firebase';
 import {
   TakoyakiCharacter,
@@ -32,7 +35,7 @@ import { TakoyakiTraySection } from './components/TakoyakiTraySection';
 import { MyTakoyakiBox } from './components/MyTakoyakiBox';
 import { FeedbackSection } from './components/FeedbackSection';
 import { UserProfilePage } from './components/UserProfilePage';
-import { Search, X, ChefHat, Flame, LogIn, LogOut, UserCheck, User as UserIcon, Lock } from 'lucide-react';
+import { Search, X, ChefHat, Flame, LogIn, LogOut, UserCheck, User as UserIcon, Lock, Bell } from 'lucide-react';
 
 const GUEST_FAVORITES_STORAGE_KEY = 'takoyaki_guest_box_favorites_v1';
 const getAccountBoxCacheKey = (uid: string) => `takoyaki_user_box_${uid}_v1`;
@@ -72,32 +75,18 @@ export default function App() {
     return [];
   });
   const [isRefreshingFeedbacks, setIsRefreshingFeedbacks] = useState<boolean>(false);
-  // Restore previously opened tab or start on 'welcome'
-  const [activeTab, setActiveTab] = useState<ActiveTab>(() => {
-    try {
-      const saved = sessionStorage.getItem(ACTIVE_TAB_STORAGE_KEY);
-      if (
-        saved &&
-        ['welcome', 'discover', 'fresh', 'ranking', 'my-box', 'feedback', 'profile', 'kitchen'].includes(saved)
-      ) {
-        return saved as ActiveTab;
-      }
-    } catch {
-      // Ignore
-    }
-    return 'welcome';
-  });
+  // Start on the outer welcome page ('welcome')
+  const [activeTab, setActiveTab] = useState<ActiveTab>('welcome');
   const [selectedCharacter, setSelectedCharacter] = useState<TakoyakiCharacter | null>(null);
   const [editingCharacter, setEditingCharacter] = useState<TakoyakiCharacter | null>(null);
 
-  // Keep activeTab synced with sessionStorage
   useEffect(() => {
     try {
-      sessionStorage.setItem(ACTIVE_TAB_STORAGE_KEY, activeTab);
+      sessionStorage.removeItem(ACTIVE_TAB_STORAGE_KEY);
     } catch {
       // Ignore
     }
-  }, [activeTab]);
+  }, []);
 
   // Firebase Auth user state
   const [currentUser, setCurrentUser] = useState<FirebaseUser | null>(null);
@@ -143,29 +132,65 @@ export default function App() {
       // Ignore
     }
 
-    // 2. Verify with Web Server's local file database (100% independent of Firestore quota)
+    // 2. Verify with Web Server, Static JSON (GitHub Pages), and Firestore Cloud
     let isCancelled = false;
     async function checkSpicyAccess() {
+      let allowed = false;
       try {
         const res = await fetch(
           `/api/spicy-access/check?email=${encodeURIComponent(cleanEmail)}`
         );
-        if (res.ok && !isCancelled) {
+        if (res.ok && res.headers.get('content-type')?.includes('application/json')) {
           const data = await res.json();
-          const allowed = Boolean(data.allowed);
-          setIsSpicyAllowed(allowed);
-          try {
-            if (allowed) {
-              localStorage.setItem(vipCacheKey, 'true');
-            } else {
-              localStorage.removeItem(vipCacheKey);
-            }
-          } catch {
-            // Ignore
-          }
+          if (data.allowed) allowed = true;
         }
-      } catch (err) {
-        console.warn('Failed to check spicy access:', err);
+      } catch {
+        // Fallback for GitHub Pages static hosting
+      }
+
+      if (!allowed) {
+        try {
+          const staticRes = await fetch(`${import.meta.env.BASE_URL}data/spicy_whitelist.json`);
+          if (staticRes.ok) {
+            const list = await staticRes.json();
+            if (
+              Array.isArray(list) &&
+              list.some((w: { email?: string }) => w?.email?.trim().toLowerCase() === cleanEmail)
+            ) {
+              allowed = true;
+            }
+          }
+        } catch {
+          // Ignore
+        }
+      }
+
+      if (!allowed) {
+        const inCloud = await checkSpicyEmailInFirestore(cleanEmail);
+        if (inCloud) allowed = true;
+      }
+
+      if (!allowed && currentUser?.uid) {
+        const verifyRecord = await fetchUserVerificationFromFirestore(
+          currentUser.uid,
+          cleanEmail
+        );
+        if (verifyRecord?.status === 'verified') {
+          allowed = true;
+        }
+      }
+
+      if (!isCancelled) {
+        setIsSpicyAllowed(allowed);
+        try {
+          if (allowed) {
+            localStorage.setItem(vipCacheKey, 'true');
+          } else {
+            localStorage.removeItem(vipCacheKey);
+          }
+        } catch {
+          // Ignore
+        }
       }
     }
     checkSpicyAccess();
@@ -189,6 +214,47 @@ export default function App() {
       setActiveTab('discover');
     }
   }, [isCreatorMode, activeTab]);
+
+  // Creator live pending 18+ verification requests counter (ONLY for hoangyendo1212@gmail.com)
+  const [pendingVerificationsCount, setPendingVerificationsCount] = useState<number>(0);
+
+  useEffect(() => {
+    const isStrictCreator =
+      isCreatorMode &&
+      Boolean(
+        currentUser?.email &&
+          currentUser.email.trim().toLowerCase() === CREATOR_ADMIN_EMAIL.toLowerCase()
+      );
+
+    if (!isStrictCreator) {
+      setPendingVerificationsCount(0);
+      try {
+        localStorage.removeItem('takoyaki_verifications_cache_v1');
+      } catch {
+        // Ignore
+      }
+      return;
+    }
+
+    let isCancelled = false;
+    async function checkPendingVerifications() {
+      try {
+        const cloudList = await fetchVerificationsFromFirestore();
+        if (isCancelled) return;
+        const pending = cloudList.filter((v) => v.status === 'pending').length;
+        setPendingVerificationsCount(pending);
+      } catch {
+        // Ignore
+      }
+    }
+
+    checkPendingVerifications();
+    const interval = setInterval(checkPendingVerifications, 15000);
+    return () => {
+      isCancelled = true;
+      clearInterval(interval);
+    };
+  }, [isCreatorMode, currentUser]);
 
   // Favorites ("My Takoyaki Box") — strictly isolated per Google account in Server DB + Firestore
   const [favorites, setFavorites] = useState<string[]>([]);
@@ -293,24 +359,63 @@ export default function App() {
 
     async function loadServerCharacters() {
       try {
-        const res = await fetch('/api/characters');
-        if (res.ok && !isCancelled) {
-          const data = await res.json();
-          if (Array.isArray(data.characters) && data.characters.length > 0) {
-            const formatted = data.characters.map((c: TakoyakiCharacter) => ({
-              ...c,
-              is_spicy: Boolean(c.is_spicy),
-            }));
-            setCharacters(formatted);
-            try {
-              localStorage.setItem(CHARACTERS_CACHE_KEY, JSON.stringify(formatted));
-            } catch {
-              // Ignore storage limit
+        let charsList: TakoyakiCharacter[] | null = null;
+        try {
+          const res = await fetch('/api/characters');
+          if (res.ok && res.headers.get('content-type')?.includes('application/json')) {
+            const data = await res.json();
+            if (Array.isArray(data.characters) && data.characters.length > 0) {
+              charsList = data.characters;
+            }
+          }
+        } catch {
+          // Fallback to static JSON on GitHub Pages
+        }
+
+        if (!charsList) {
+          const staticRes = await fetch(`${import.meta.env.BASE_URL}data/characters.json`);
+          if (staticRes.ok) {
+            const staticData = await staticRes.json();
+            if (Array.isArray(staticData.characters) && staticData.characters.length > 0) {
+              charsList = staticData.characters;
             }
           }
         }
+
+        if (charsList && !isCancelled) {
+          const formatted = charsList.map((c: TakoyakiCharacter) => ({
+            ...c,
+            artwork: c.artwork || '',
+            avatar: c.avatar || c.artwork || '',
+            coverImage: c.coverImage || c.artwork || '',
+            is_spicy: Boolean(c.is_spicy),
+          }));
+          setCharacters((prev) => {
+            if (prev.length === 0) return formatted;
+            const byId = new Map<string, TakoyakiCharacter>();
+            for (const item of formatted) byId.set(item.id, item);
+            for (const item of prev) {
+              const s = byId.get(item.id);
+              if (s) {
+                byId.set(item.id, {
+                  ...s,
+                  playCount: Math.max(s.playCount || 0, item.playCount || 0),
+                  favoriteCount: Math.max(s.favoriteCount || 0, item.favoriteCount || 0),
+                });
+              } else {
+                byId.set(item.id, item);
+              }
+            }
+            return Array.from(byId.values());
+          });
+          try {
+            localStorage.setItem(CHARACTERS_CACHE_KEY, JSON.stringify(formatted));
+          } catch {
+            // Ignore storage limit
+          }
+        }
       } catch (err) {
-        console.warn('Initial server characters load warning:', err);
+        console.warn('Initial characters load warning:', err);
       }
     }
 
@@ -342,7 +447,7 @@ export default function App() {
           if (Array.isArray(syncData.characters) && syncData.characters.length > 0) {
             const formatted = syncData.characters.map((c: TakoyakiCharacter) => ({
               ...c,
-              is_spicy: Boolean(c.is_spicy),
+              is_spicy: Boolean(c.is_spicy), avatar: c.avatar || c.artwork || '', coverImage: c.coverImage || c.artwork || '',
             }));
             setCharacters(formatted);
             try {
@@ -912,6 +1017,7 @@ export default function App() {
           setActiveTab={setActiveTab}
           favoritesCount={myBoxCharacters.length}
           isCreatorMode={isCreatorMode}
+          pendingVerificationsCount={isCreatorMode ? pendingVerificationsCount : 0}
           userEmail={currentUser?.email || null}
           userPhotoUrl={currentUser?.photoURL || null}
           onOpenSearch={() => setIsSearchOpen(true)}
@@ -922,11 +1028,39 @@ export default function App() {
         />
       )}
 
+      {/* Live Creator Notification Banner when there are pending 18+ photo requests (STRICTLY OWNER ONLY) */}
+      {isCreatorMode &&
+        currentUser?.email?.trim().toLowerCase() === CREATOR_ADMIN_EMAIL.toLowerCase() &&
+        pendingVerificationsCount > 0 &&
+        activeTab !== 'profile' && (
+          <div className="bg-[#FFF3E0] border-b border-[#FFE082] px-4 py-2.5">
+            <div className="max-w-[1200px] mx-auto flex items-center justify-between gap-3 flex-wrap">
+              <div className="flex items-center gap-2 text-xs sm:text-sm font-semibold text-[#432314]">
+                <span className="w-6 h-6 rounded-full bg-[#C84B31] text-white flex items-center justify-center shrink-0 animate-bounce">
+                  <Bell className="w-3.5 h-3.5" />
+                </span>
+                <span>
+                  Đang có <strong className="text-[#C84B31]">{pendingVerificationsCount} thực khách</strong> vừa gửi ảnh xác minh 18+ chờ Cáo Bel duyệt!
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setActiveTab('profile')}
+                className="px-3.5 py-1.5 rounded-xl bg-[#E57C29] hover:bg-[#D46B1A] text-white text-xs font-bold shadow-2xs transition-colors cursor-pointer"
+              >
+                Xem & Duyệt ngay →
+              </button>
+            </div>
+          </div>
+        )}
+
       {/* Main View Content */}
       <main className="flex-1">
         {/* DEDICATED OPENING PAGE: Hero Stall Banner with "Quẹo lựa takoyaki" */}
         {activeTab === 'welcome' && (
-          <WelcomeHeroPage onEnterTrays={() => setActiveTab('discover')} />
+          <WelcomeHeroPage
+            onEnterTrays={() => setActiveTab('discover')}
+          />
         )}
 
         {/* TWO TRAYS PAGE: Original Flavor & Spicy Flavor side by side */}
@@ -1084,6 +1218,8 @@ export default function App() {
             onLogout={handleLogout}
             onLoginWithGoogle={handleGoogleLogin}
             isSigningIn={isSigningIn}
+            onSpicyAccessGranted={() => setIsSpicyAllowed(true)}
+            onPendingCountChange={setPendingVerificationsCount}
           />
         )}
 
@@ -1409,19 +1545,19 @@ export default function App() {
                     👉 Bạn chưa đăng nhập tài khoản.
                   </p>
                   <p className="text-xs">
-                    Vui lòng đăng nhập bằng Google để kiểm tra xem tài khoản của bạn đã được Cáo cấp quyền VIP chưa nhé!
+                    Vui lòng đăng nhập bằng Google rồi gửi ảnh xác minh đủ 18 tuổi tại mục <strong>Thực khách</strong> để Cáo duyệt mở khóa nhé!
                   </p>
                 </div>
               ) : (
                 <div className="p-3.5 rounded-2xl bg-[#FFF3E0] border border-[#FFE082] text-[#843B00] space-y-2">
                   <p className="font-semibold flex items-center gap-1.5 text-xs sm:text-sm flex-wrap">
-                    <span>Email hiện tại:</span>
+                    <span>Tài khoản hiện tại:</span>
                     <code className="px-1.5 py-0.5 rounded bg-white font-mono text-xs text-[#E65100] border border-[#FFD54F]">
                       {currentUser.email}
                     </code>
                   </p>
                   <p className="text-xs leading-relaxed">
-                    Email này chưa có trong danh sách VIP của tiệm. Bạn chỉ cần nhắn tin cho <strong>Cáo Bel</strong> gửi email này là Cáo sẽ cấp quyền mở khóa ngay nha!
+                    Khay bánh Vị Cay Tê chỉ dành cho thực khách từ đủ <strong>18 tuổi trở lên</strong>. Bạn hãy bấm nút bên dưới để gửi ảnh xác minh năm sinh 18+ (che kín thông tin nhạy cảm) cho <strong>Cáo Bel</strong> duyệt mở khóa ngay nha!
                   </p>
                 </div>
               )}
@@ -1445,7 +1581,7 @@ export default function App() {
                   className="px-5 py-2.5 rounded-xl bg-[#E57C29] hover:bg-[#D46B1A] text-white text-xs sm:text-sm font-semibold transition-colors cursor-pointer shadow-xs flex items-center gap-1.5"
                 >
                   <LogIn className="w-4 h-4" />
-                  <span>Đăng nhập Google</span>
+                  <span>Đăng nhập để xác minh 18+</span>
                 </button>
               ) : (
                 <button
@@ -1457,7 +1593,7 @@ export default function App() {
                   className="px-5 py-2.5 rounded-xl bg-[#E57C29] hover:bg-[#D46B1A] text-white text-xs sm:text-sm font-semibold transition-colors cursor-pointer shadow-xs flex items-center gap-1.5"
                 >
                   <UserIcon className="w-4 h-4" />
-                  <span>Xem hồ sơ Thực khách</span>
+                  <span>📸 Gửi ảnh xác minh 18+ ngay</span>
                 </button>
               )}
             </div>

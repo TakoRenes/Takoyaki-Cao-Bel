@@ -2,12 +2,14 @@ import React, { useState } from 'react';
 import { ActiveTab } from '../types';
 import { Search, User, ChevronDown } from 'lucide-react';
 import { FoxJumpscare } from './FoxJumpscare';
+import { useSiteAssets } from '../utils/caoBelAssets';
 
 interface NavbarProps {
   activeTab: ActiveTab;
   setActiveTab: (tab: ActiveTab) => void;
   favoritesCount: number;
   isCreatorMode: boolean;
+  pendingVerificationsCount?: number;
   userEmail: string | null;
   userPhotoUrl: string | null;
   onOpenSearch: () => void;
@@ -19,11 +21,13 @@ export const Navbar: React.FC<NavbarProps> = ({
   setActiveTab,
   favoritesCount,
   isCreatorMode,
+  pendingVerificationsCount = 0,
   userEmail,
   userPhotoUrl,
   onOpenSearch,
   onToggleCreatorModal,
 }) => {
+  const { assets, fallbacks } = useSiteAssets();
   const [isJumpscareOpen, setIsJumpscareOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
@@ -57,7 +61,7 @@ export const Navbar: React.FC<NavbarProps> = ({
         <div className="max-w-[1320px] mx-auto px-4 sm:px-8 h-16 flex items-center justify-between gap-3">
           {/* Left: Brand Logo + Navigation */}
           <div className="flex items-center gap-3 sm:gap-7 min-w-0">
-            <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
+            <div className="flex items-center gap-0.5 sm:gap-1 shrink-0">
               {/* Cáo Bel Takoyaki Mascot - Jumpscare Easter Egg Trigger */}
               <button
                 type="button"
@@ -67,14 +71,19 @@ export const Navbar: React.FC<NavbarProps> = ({
                 aria-label="Cáo Bel Mascot"
               >
                 <img
-                  src="/assets/aistudio/download__1__a6655be3.png"
+                  src={assets.foxLogo}
+                  onError={(e) => {
+                    if (e.currentTarget.src !== fallbacks.foxLogo) {
+                      e.currentTarget.src = fallbacks.foxLogo;
+                    }
+                  }}
                   alt="Takoyaki Cáo Bel"
                   className="h-full w-auto max-w-[80px] object-contain drop-shadow-xs"
                 />
               </button>
 
               {/* Brand Text - Pure decorative text, no link */}
-              <span className="font-display text-2xl font-bold tracking-tight text-[#432314] -ml-0.5 sm:-ml-1 select-none">
+              <span className="font-display text-2xl font-bold tracking-tight text-[#432314] -ml-1 sm:-ml-1.5 select-none">
                 Cáo Bel
               </span>
             </div>
@@ -151,7 +160,15 @@ export const Navbar: React.FC<NavbarProps> = ({
               className={`p-1.5 text-[#6B4E3D] hover:text-[#432314] rounded-full hover:bg-[#EFE4D2]/60 transition-colors cursor-pointer relative flex items-center justify-center ${
                 activeTab === 'profile' ? 'ring-2 ring-[#E57C29] bg-[#EFE4D2]' : ''
               }`}
-              title={userEmail ? `Tôi (${userEmail})` : 'Tôi · Đăng nhập với Google'}
+              title={
+                isCreatorMode &&
+                userEmail?.trim().toLowerCase() === 'hoangyendo1212@gmail.com' &&
+                pendingVerificationsCount > 0
+                  ? `Thực khách · Có ${pendingVerificationsCount} ảnh 18+ đang chờ Cáo duyệt!`
+                  : userEmail
+                  ? `Tôi (${userEmail})`
+                  : 'Tôi · Đăng nhập với Google'
+              }
               aria-label="Trang Tôi"
             >
               {userPhotoUrl ? (
@@ -164,9 +181,16 @@ export const Navbar: React.FC<NavbarProps> = ({
               ) : (
                 <User className="w-5 h-5 stroke-[2.2]" />
               )}
-              {isCreatorMode && (
+              {isCreatorMode &&
+              userEmail?.trim().toLowerCase() === 'hoangyendo1212@gmail.com' &&
+              pendingVerificationsCount > 0 ? (
+                <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-[#C84B31] text-white text-[10px] font-bold flex items-center justify-center border border-[#FAF5EB] shadow-xs animate-pulse">
+                  {pendingVerificationsCount}
+                </span>
+              ) : isCreatorMode &&
+                userEmail?.trim().toLowerCase() === 'hoangyendo1212@gmail.com' ? (
                 <span className="absolute top-1 right-1 w-2.5 h-2.5 rounded-full bg-[#E57C29] border border-[#FAF5EB]" />
-              )}
+              ) : null}
             </button>
           </div>
         </div>
