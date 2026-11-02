@@ -79,7 +79,7 @@ export const CharacterDetailModal: React.FC<CharacterDetailModalProps> = ({
                   src={character.artwork}
                   alt={character.name}
                   referrerPolicy="no-referrer"
-                  className="w-full h-full object-cover"
+                  className="w-full h-full object-cover object-top"
                 />
               ) : (
                 <div className="w-full h-full flex items-center justify-center font-display text-4xl text-[#E8833A] bg-[#FFFDF9]">

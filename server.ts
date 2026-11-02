@@ -605,6 +605,7 @@ async function startServer() {
       createdAt: typeof body.createdAt === 'string' && body.createdAt ? body.createdAt : now,
       updatedAt: now,
       status: body.status === 'published' ? 'published' : 'draft',
+      imagePosition: typeof body.imagePosition === 'string' ? body.imagePosition : 'center',
     };
 
     const existingIdx = db.characters.findIndex((c) => c.id === id);
@@ -753,6 +754,7 @@ async function startServer() {
           ? body.status
           : existing.status,
       updatedAt: now,
+      imagePosition: typeof body.imagePosition === 'string' ? body.imagePosition : existing.imagePosition,
     };
 
     db.characters[idx] = updated;

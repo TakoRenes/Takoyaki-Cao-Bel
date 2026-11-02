@@ -830,6 +830,7 @@ export default function App() {
       createdAt: existingChar?.createdAt || now,
       updatedAt: now,
       status: input.status,
+      imagePosition: input.imagePosition || 'center',
     };
 
     // 1. Persist to authoritative server API first so characters are NEVER lost even if Firestore hits quota

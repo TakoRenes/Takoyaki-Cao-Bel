@@ -161,7 +161,7 @@ export const TakoyakiTraySection: React.FC<TakoyakiTraySectionProps> = ({
                               src={char.artwork}
                               alt={char.name}
                               referrerPolicy="no-referrer"
-                              className="w-full h-full object-cover"
+                              className={`w-full h-full object-cover object-${char.imagePosition || 'center'}`}
                             />
                           ) : (
                             <div className="w-full h-full flex items-center justify-center font-display text-lg text-[#3D251E]">
