@@ -771,7 +771,7 @@ export const TakoyakiStallHero: React.FC<TakoyakiStallHeroProps> = ({
                       onMouseEnter={playTakoyakiSizzle}
                       onClick={() => handleBallClick(char)}
                       title={`${char.name} (Vị truyền thống)`}
-                      className={`group relative z-20 w-full aspect-square max-w-[88px] rounded-full transition-transform duration-200 hover:-translate-y-1.5 cursor-pointer focus-visible:outline-none ${
+                      className={`group relative z-20 w-full aspect-square max-w-[88px] rounded-full transition-all duration-200 hover:-translate-y-1.5 active:scale-90 cursor-pointer focus-visible:outline-none ${
                         isRevealed ? '-translate-y-1.5' : ''
                       }`}
                       style={{
@@ -964,7 +964,7 @@ export const TakoyakiStallHero: React.FC<TakoyakiStallHeroProps> = ({
                       onMouseEnter={playTakoyakiSizzle}
                       onClick={() => handleBallClick(char)}
                       title={`${char.name} (Vị cay tê)`}
-                      className={`group relative z-20 w-full aspect-square max-w-[88px] rounded-full transition-transform duration-200 hover:-translate-y-1.5 cursor-pointer focus-visible:outline-none ${
+                      className={`group relative z-20 w-full aspect-square max-w-[88px] rounded-full transition-all duration-200 hover:-translate-y-1.5 active:scale-90 cursor-pointer focus-visible:outline-none ${
                         isRevealed ? '-translate-y-1.5' : ''
                       }`}
                       style={{

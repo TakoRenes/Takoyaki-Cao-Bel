@@ -27,12 +27,12 @@ export const CharacterDetailModal: React.FC<CharacterDetailModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-[#3D251E]/45 backdrop-blur-sm overflow-y-auto"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-[#3D251E]/45 backdrop-blur-sm overflow-y-auto animate-in fade-in duration-1000"
       role="dialog"
       aria-modal="true"
       aria-labelledby="character-detail-title"
     >
-      <div className="relative w-full max-w-3xl bg-[#FDF8F0] border-2 border-[#D4A373] rounded-2xl shadow-2xl overflow-hidden my-auto max-h-[90vh] flex flex-col text-[#3D251E]">
+      <div className="relative w-full max-w-3xl bg-[#FDF8F0] border-2 border-[#D4A373] rounded-2xl shadow-2xl overflow-hidden my-auto max-h-[90vh] flex flex-col text-[#3D251E] animate-in fade-in zoom-in-95 duration-1000 ease-out">
         {/* Top Wooden Boat Tray Header Bar */}
         <div className="flex items-center justify-between px-4 sm:px-6 py-3.5 sm:py-4 bg-[#F5EBD9] border-b border-[#E5D3B3]">
           <div className="flex items-center gap-2 text-xs font-medium text-[#7A5C4F]">

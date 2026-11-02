@@ -154,12 +154,6 @@ export const TakoyakiTraySection: React.FC<TakoyakiTraySectionProps> = ({
                       <div
                         data-takoyaki-ball-id={char.id}
                         className="relative w-14 h-14 sm:w-18 sm:h-18 rounded-full p-1 shrink-0 transition-transform duration-200 group-hover:scale-105"
-                        style={{
-                          background: char.is_spicy
-                            ? 'radial-gradient(circle at 30% 25%, #E8833A 0%, #C84B31 60%, #7D2918 100%)'
-                            : 'radial-gradient(circle at 30% 25%, #F4B942 0%, #E8833A 55%, #8C6239 100%)',
-                          boxShadow: '0 4px 10px rgba(61,37,30,0.2)',
-                        }}
                       >
                         <div className="w-full h-full rounded-full overflow-hidden bg-[#FDF8F0]">
                           {char.artwork ? (
@@ -417,7 +411,7 @@ export const TakoyakiTraySection: React.FC<TakoyakiTraySectionProps> = ({
                     lastPointerTypeRef.current = e.pointerType;
                   }}
                   onClick={() => handleCompartmentClick(char)}
-                  className="group relative aspect-square rounded-[16px] sm:rounded-[18px] p-4 flex flex-col items-center justify-between text-center cursor-pointer transition-all duration-200 wood-board-surface border border-[#8E6538] hover:border-[#E57C29]"
+                  className="group relative aspect-square rounded-[16px] sm:rounded-[18px] p-4 flex flex-col items-center justify-between text-center cursor-pointer transition-all duration-200 wood-board-surface border border-[#8E6538] hover:border-[#E57C29] active:scale-95"
                   style={{
                     boxShadow:
                       'inset 0 6px 16px rgba(68, 40, 16, 0.34), inset 0 2px 5px rgba(45, 25, 8, 0.25), 0 1px 0 rgba(255, 248, 235, 0.5)',
