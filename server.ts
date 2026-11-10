@@ -15,7 +15,7 @@ import {
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Manual upload handler helper
+// Helper lưu ảnh upload
 const saveUploadedFile = (buffer: Buffer, originalName: string) => {
   const dir = path.join(__dirname, 'public', 'uploads', 'characters');
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
@@ -30,23 +30,6 @@ const saveUploadedFile = (buffer: Buffer, originalName: string) => {
   return `/uploads/characters/${filename}`;
 };
 
-const removeUploadedFileIfUnused = (artworkUrl: string | undefined, remainingChars: StoredCharacter[]) => {
-  if (!artworkUrl || !artworkUrl.startsWith('/uploads/characters/')) return;
-  const stillUsed = remainingChars.some(
-    (c) => c.artwork === artworkUrl || c.avatar === artworkUrl || c.coverImage === artworkUrl
-  );
-  if (stillUsed) return;
-  try {
-    const relPath = artworkUrl.replace(/^\/+/, '');
-    const fullPath = path.join(__dirname, 'public', relPath);
-    if (fs.existsSync(fullPath)) {
-      fs.unlinkSync(fullPath);
-    }
-  } catch {
-    // Ignore file deletion errors
-  }
-};
-
 const DATA_DIR = path.join(__dirname, 'data');
 const DB_FILE = path.join(DATA_DIR, 'characters.json');
 const SPICY_WHITELIST_FILE = path.join(DATA_DIR, 'spicy_whitelist.json');
@@ -55,7 +38,7 @@ const SITE_ASSETS_FILE = path.join(DATA_DIR, 'site_assets.json');
 const PUBLIC_AISTUDIO_DIR = path.join(__dirname, 'public', 'assets', 'aistudio');
 const CREATOR_EMAIL = 'hoangyendo1212@gmail.com';
 
-// Initialize server-side Firestore client for automatic cloud backup & startup hydration
+// Initialize Firebase
 const firebaseConfigRaw = JSON.parse(
   fs.readFileSync(path.join(__dirname, 'firebase-applet-config.json'), 'utf-8')
 );
@@ -595,6 +578,7 @@ async function startServer() {
     res.status(201).json({ character: newChar });
   });
 
+  // PUT UPDATE CÓ CƠ CHẾ ĐÀO THẢI ẢNH CŨ VÀ BUST CACHE
   app.put('/api/characters/:id', (req, res) => {
     const db = ensureDatabase();
     const { id } = req.params;
@@ -608,52 +592,49 @@ async function startServer() {
     }
 
     if (idx === -1) {
-      const artwork = typeof body.artwork === 'string' ? body.artwork : '';
-      const created: StoredCharacter = {
-        id,
-        name: typeof body.name === 'string' ? body.name.trim().slice(0, 100) : 'Takoyaki',
-        artwork,
-        avatar: typeof body.avatar === 'string' && body.avatar ? body.avatar : artwork,
-        coverImage: typeof body.coverImage === 'string' && body.coverImage ? body.coverImage : artwork,
-        shortDescription: typeof body.shortDescription === 'string' ? body.shortDescription.trim().slice(0, 300) : '',
-        plot: typeof body.plot === 'string' ? body.plot.trim().slice(0, 5000) : '',
-        personality: typeof body.personality === 'string' ? body.personality.trim().slice(0, 4000) : '',
-        scenario: typeof body.scenario === 'string' ? body.scenario.trim().slice(0, 4000) : '',
-        openingScene: typeof body.openingScene === 'string' ? body.openingScene.trim().slice(0, 5000) : '',
-        setting: typeof body.setting === 'string' ? body.setting.trim().slice(0, 1000) : '',
-        relationship: typeof body.relationship === 'string' ? body.relationship.trim().slice(0, 500) : '',
-        genre: typeof body.genre === 'string' && body.genre ? body.genre : 'Slice of Life',
-        tags: Array.isArray(body.tags) ? body.tags.map((t: unknown) => String(t).trim()).filter(Boolean).slice(0, 12) : [],
-        contentWarning: typeof body.contentWarning === 'string' ? body.contentWarning.trim().slice(0, 500) : '',
-        creator: typeof body.creator === 'string' && body.creator.trim() ? body.creator.trim().slice(0, 80) : 'Cáo Bel',
-        playUrl: typeof body.playUrl === 'string' ? body.playUrl.trim().slice(0, 1000) : '',
-        is_spicy: Boolean(body.is_spicy),
-        allowsMale: Boolean(body.allowsMale),
-        allowsFemale: Boolean(body.allowsFemale),
-        playCount: Math.max(0, Number(body.playCount) || 0),
-        viewCount: Math.max(0, Number(body.viewCount) || 0),
-        favoriteCount: Math.max(0, Number(body.favoriteCount) || 0),
-        createdAt: typeof body.createdAt === 'string' && body.createdAt ? body.createdAt : now,
-        updatedAt: now,
-        status: body.status === 'draft' ? 'draft' : 'published',
-        imagePosition: typeof body.imagePosition === 'string' ? body.imagePosition : 'center',
-      };
-      db.characters.unshift(created);
-      saveDatabase(db);
-      res.json({ character: created });
+      res.status(404).json({ error: 'Không tìm thấy nhân vật để update.' });
       return;
     }
 
     const existing = db.characters[idx];
-    const previousArtwork = existing.artwork;
-    const nextArtwork = typeof body.artwork === 'string' ? body.artwork : existing.artwork;
+
+    // CƠ CHẾ 1: ĐÀO THẢI ẢNH CŨ
+    const deleteOldFile = (oldUrl: string, newUrl: string) => {
+      if (oldUrl && oldUrl.includes('/uploads/') && oldUrl.split('?')[0] !== newUrl.split('?')[0]) {
+        try {
+          const cleanOldUrl = oldUrl.split('?')[0]; 
+          const oldPath = path.join(__dirname, 'public', cleanOldUrl);
+          if (fs.existsSync(oldPath)) {
+            fs.unlinkSync(oldPath);
+            console.log('✅ Đã đào thải ảnh cũ:', oldPath);
+          }
+        } catch (err) {
+          console.error('❌ Lỗi đào thải ảnh cũ:', err);
+        }
+      }
+    };
+
+    const incomingArtwork = typeof body.artwork === 'string' ? body.artwork : existing.artwork;
+    const incomingAvatar = typeof body.avatar === 'string' ? body.avatar : existing.avatar;
+    const incomingCover = typeof body.coverImage === 'string' ? body.coverImage : existing.coverImage;
+
+    deleteOldFile(existing.artwork, incomingArtwork);
+    deleteOldFile(existing.avatar, incomingAvatar);
+    deleteOldFile(existing.coverImage, incomingCover);
+
+    // CƠ CHẾ 2: BUST CACHE TRÌNH DUYỆT
+    const bustCache = (url: string, oldUrl: string) => {
+      if (!url || url.startsWith('data:image') || url === oldUrl) return url;
+      return url.split('?')[0] + `?v=${Date.now()}`;
+    };
+
     const updated: StoredCharacter = {
       ...existing,
       id,
       name: typeof body.name === 'string' && body.name.trim() ? body.name.trim().slice(0, 100) : existing.name,
-      artwork: nextArtwork,
-      avatar: typeof body.avatar === 'string' ? body.avatar : nextArtwork,
-      coverImage: typeof body.coverImage === 'string' ? body.coverImage : nextArtwork,
+      artwork: bustCache(incomingArtwork, existing.artwork),
+      avatar: bustCache(incomingAvatar, existing.avatar),
+      coverImage: bustCache(incomingCover, existing.coverImage),
       shortDescription: typeof body.shortDescription === 'string' ? body.shortDescription.trim().slice(0, 300) : existing.shortDescription,
       plot: typeof body.plot === 'string' ? body.plot.trim().slice(0, 5000) : existing.plot,
       personality: typeof body.personality === 'string' ? body.personality.trim().slice(0, 4000) : existing.personality,
@@ -671,13 +652,10 @@ async function startServer() {
       allowsFemale: typeof body.allowsFemale === 'boolean' ? body.allowsFemale : Boolean(existing.allowsFemale),
       status: body.status === 'published' || body.status === 'draft' ? body.status : existing.status,
       updatedAt: now,
-      imagePosition: typeof body.imagePosition === 'string' ? body.imagePosition : existing.imagePosition || 'center',
+      imagePosition: typeof body.imagePosition === 'string' ? body.imagePosition : existing.imagePosition,
     };
 
     db.characters[idx] = updated;
-    if (previousArtwork && previousArtwork !== nextArtwork) {
-      removeUploadedFileIfUnused(previousArtwork, db.characters);
-    }
     saveDatabase(db);
     res.json({ character: updated });
   });
@@ -685,16 +663,12 @@ async function startServer() {
   app.delete('/api/characters/:id', (req, res) => {
     const db = ensureDatabase();
     const { id } = req.params;
-    const target = db.characters.find((c) => c.id === id);
     const initialLen = db.characters.length;
     db.characters = db.characters.filter((c) => c.id !== id);
 
     if (db.characters.length === initialLen) {
       res.status(404).json({ error: 'Character not found.' });
       return;
-    }
-    if (target?.artwork) {
-      removeUploadedFileIfUnused(target.artwork, db.characters);
     }
     saveDatabase(db);
     res.json({ success: true });
