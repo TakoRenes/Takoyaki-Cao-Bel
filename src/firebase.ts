@@ -135,6 +135,283 @@ export async function signOutUser() {
   return signOut(auth);
 }
 
+export interface UserLoyaltyStats {
+  playCount: number;
+  visitDaysCount: number;
+  currentStreak: number;
+  bestStreak: number;
+  lastVisitDate: string; // YYYY-MM-DD in local time of last manual check-in
+  visitHistory: string[]; // Recent YYYY-MM-DD dates (up to 14 days) of manual check-ins
+  manualCheckInVersion?: number;
+  updatedAt: string;
+}
+
+const USER_STATS_DOC_ID = '__user_stats__';
+export const getLocalDateString = (d = new Date()): string => {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const getYesterdayDateString = (): string => {
+  const d = new Date();
+  d.setDate(d.getDate() - 1);
+  return getLocalDateString(d);
+};
+
+export const getUserStatsCacheKey = (uid: string) =>
+  `takoyaki_user_loyalty_stats_${uid || 'guest'}_v2`;
+
+export function loadLocalUserLoyaltyStats(uid?: string | null): UserLoyaltyStats {
+  const today = getLocalDateString();
+  const yesterday = getYesterdayDateString();
+  const defaultStats: UserLoyaltyStats = {
+    playCount: 0,
+    visitDaysCount: 0,
+    currentStreak: 0,
+    bestStreak: 0,
+    lastVisitDate: '',
+    visitHistory: [],
+    manualCheckInVersion: 2,
+    updatedAt: new Date().toISOString(),
+  };
+  if (typeof window === 'undefined') return defaultStats;
+  try {
+    const raw = localStorage.getItem(getUserStatsCacheKey(uid || 'guest'));
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object' && parsed.manualCheckInVersion === 2) {
+        const lastVisitDate =
+          typeof parsed.lastVisitDate === 'string' ? parsed.lastVisitDate : '';
+        const visitHistory = Array.isArray(parsed.visitHistory)
+          ? parsed.visitHistory.filter((x: unknown) => typeof x === 'string').slice(-14)
+          : [];
+        const rawCurrentStreak = Math.max(0, Number(parsed.currentStreak) || 0);
+        const isStreakAlive =
+          lastVisitDate === today ||
+          lastVisitDate === yesterday ||
+          visitHistory.includes(today) ||
+          visitHistory.includes(yesterday);
+        const currentStreak = isStreakAlive ? rawCurrentStreak : 0;
+
+        return {
+          playCount: Math.max(0, Number(parsed.playCount) || 0),
+          visitDaysCount: Math.max(
+            0,
+            Number(parsed.visitDaysCount) || 0,
+            visitHistory.length
+          ),
+          currentStreak,
+          bestStreak: Math.max(0, Number(parsed.bestStreak) || 0, currentStreak),
+          lastVisitDate,
+          visitHistory,
+          manualCheckInVersion: 2,
+          updatedAt:
+            typeof parsed.updatedAt === 'string'
+              ? parsed.updatedAt
+              : defaultStats.updatedAt,
+        };
+      }
+    }
+
+    // Migrate playCount from v1 cache if present
+    const legacyRaw = localStorage.getItem(
+      `takoyaki_user_loyalty_stats_${uid || 'guest'}_v1`
+    );
+    if (legacyRaw) {
+      const legacyParsed = JSON.parse(legacyRaw);
+      if (legacyParsed && typeof legacyParsed === 'object') {
+        return {
+          ...defaultStats,
+          playCount: Math.max(0, Number(legacyParsed.playCount) || 0),
+        };
+      }
+    }
+  } catch {
+    // Ignore storage errors
+  }
+  return defaultStats;
+}
+
+export function saveLocalUserLoyaltyStats(
+  uid: string | null | undefined,
+  stats: UserLoyaltyStats
+): void {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(
+      getUserStatsCacheKey(uid || 'guest'),
+      JSON.stringify({ ...stats, manualCheckInVersion: 2 })
+    );
+  } catch {
+    // Ignore storage errors
+  }
+}
+
+/**
+ * Syncs user loyalty & check-in stats from Firestore (`users/{uid}/box/__user_stats__`)
+ * WITHOUT automatically checking in for today. Users must click the "Điểm danh" button.
+ */
+export async function syncUserDailyVisitAndStats(
+  uid?: string | null
+): Promise<UserLoyaltyStats> {
+  const today = getLocalDateString();
+  const yesterday = getYesterdayDateString();
+  let stats = loadLocalUserLoyaltyStats(uid);
+
+  if (uid) {
+    try {
+      const snap = await getDoc(doc(db, 'users', uid.slice(0, 128), 'box', USER_STATS_DOC_ID));
+      if (snap.exists()) {
+        const data = snap.data();
+        if (data.manualCheckInVersion === 2) {
+          const cloudHistory = Array.isArray(data.visitHistory)
+            ? data.visitHistory.filter((x: unknown) => typeof x === 'string')
+            : [];
+          const mergedHistory = Array.from(
+            new Set([...stats.visitHistory, ...cloudHistory])
+          )
+            .sort()
+            .slice(-14);
+          const cloudLast =
+            typeof data.lastVisitDate === 'string' ? data.lastVisitDate : '';
+          const lastVisitDate =
+            cloudLast > stats.lastVisitDate ? cloudLast : stats.lastVisitDate;
+          const useCloudStreak = cloudLast >= stats.lastVisitDate;
+          const rawStreak = useCloudStreak
+            ? Math.max(0, Number(data.currentStreak) || stats.currentStreak)
+            : stats.currentStreak;
+          const isStreakAlive =
+            lastVisitDate === today ||
+            lastVisitDate === yesterday ||
+            mergedHistory.includes(today) ||
+            mergedHistory.includes(yesterday);
+          const currentStreak = isStreakAlive ? rawStreak : 0;
+
+          stats = {
+            playCount: Math.max(stats.playCount, Number(data.playCount) || 0),
+            visitDaysCount: Math.max(
+              stats.visitDaysCount,
+              Number(data.visitDaysCount) || 0,
+              mergedHistory.length
+            ),
+            currentStreak,
+            bestStreak: Math.max(
+              stats.bestStreak,
+              Number(data.bestStreak) || 0,
+              currentStreak
+            ),
+            lastVisitDate,
+            visitHistory: mergedHistory,
+            manualCheckInVersion: 2,
+            updatedAt: new Date().toISOString(),
+          };
+        } else {
+          // Migrate playCount from v1 cloud document while resetting auto-visit to manual check-in
+          stats = {
+            ...stats,
+            playCount: Math.max(stats.playCount, Number(data.playCount) || 0),
+            manualCheckInVersion: 2,
+            updatedAt: new Date().toISOString(),
+          };
+          await setDoc(doc(db, 'users', uid.slice(0, 128), 'box', USER_STATS_DOC_ID), {
+            ...stats,
+            userId: uid.slice(0, 128),
+          });
+        }
+      }
+    } catch {
+      // Non-blocking if offline
+    }
+  }
+
+  saveLocalUserLoyaltyStats(uid, stats);
+  return stats;
+}
+
+/**
+ * Explicitly checks in the user for today when they click the "Điểm danh" button.
+ * Increments visitDaysCount and updates currentStreak / bestStreak if not already checked in today.
+ */
+export async function checkInUserDaily(
+  uid?: string | null
+): Promise<{ stats: UserLoyaltyStats; alreadyCheckedIn: boolean }> {
+  const today = getLocalDateString();
+  const yesterday = getYesterdayDateString();
+  const current = loadLocalUserLoyaltyStats(uid);
+
+  const alreadyCheckedIn =
+    current.lastVisitDate === today || current.visitHistory.includes(today);
+  if (alreadyCheckedIn) {
+    return { stats: current, alreadyCheckedIn: true };
+  }
+
+  const isConsecutive =
+    current.lastVisitDate === yesterday || current.visitHistory.includes(yesterday);
+  const nextStreak = isConsecutive ? Math.max(1, current.currentStreak) + 1 : 1;
+  const nextHistory = Array.from(new Set([...current.visitHistory, today]))
+    .sort()
+    .slice(-14);
+  const nextVisitDays = Math.max(current.visitDaysCount + 1, nextHistory.length);
+  const nextBestStreak = Math.max(current.bestStreak, nextStreak);
+
+  const updated: UserLoyaltyStats = {
+    ...current,
+    visitDaysCount: nextVisitDays,
+    currentStreak: nextStreak,
+    bestStreak: nextBestStreak,
+    lastVisitDate: today,
+    visitHistory: nextHistory,
+    manualCheckInVersion: 2,
+    updatedAt: new Date().toISOString(),
+  };
+
+  saveLocalUserLoyaltyStats(uid, updated);
+
+  if (uid) {
+    try {
+      await setDoc(doc(db, 'users', uid.slice(0, 128), 'box', USER_STATS_DOC_ID), {
+        ...updated,
+        userId: uid.slice(0, 128),
+      });
+    } catch {
+      // Non-blocking
+    }
+  }
+
+  return { stats: updated, alreadyCheckedIn: false };
+}
+
+/**
+ * Increment the user's personal character play count ("nhấp vào Thưởng thức")
+ * and persist to localStorage + Firestore.
+ */
+export async function incrementUserPersonalPlayCount(
+  uid?: string | null
+): Promise<UserLoyaltyStats> {
+  const current = loadLocalUserLoyaltyStats(uid);
+  const updated: UserLoyaltyStats = {
+    ...current,
+    playCount: (current.playCount || 0) + 1,
+    updatedAt: new Date().toISOString(),
+  };
+  saveLocalUserLoyaltyStats(uid, updated);
+
+  if (uid) {
+    try {
+      await setDoc(doc(db, 'users', uid.slice(0, 128), 'box', USER_STATS_DOC_ID), {
+        ...updated,
+        userId: uid.slice(0, 128),
+      });
+    } catch {
+      // Non-blocking
+    }
+  }
+
+  return updated;
+}
+
 /**
  * Subscribe to the signed-in user's private Takoyaki Box (`users/{uid}/box`).
  */
@@ -149,6 +426,7 @@ export function subscribeToUserBox(
       if (isCancelled) return;
       const ids: string[] = [];
       snapshot.forEach((docSnap) => {
+        if (docSnap.id === USER_STATS_DOC_ID) return;
         const data = docSnap.data();
         if (data && typeof data.characterId === 'string') {
           ids.push(data.characterId);

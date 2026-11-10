@@ -29,6 +29,8 @@ import {
 import { SpicyWhitelistItem, AgeVerificationRequest } from '../types';
 import {
   CREATOR_ADMIN_EMAIL,
+  UserLoyaltyStats,
+  getLocalDateString,
   saveSpicyEmailToFirestore,
   deleteSpicyEmailFromFirestore,
   fetchSpicyWhitelistFromFirestore,
@@ -94,6 +96,8 @@ interface UserProfilePageProps {
   isCreatorMode: boolean;
   isSpicyAllowed?: boolean;
   favoritesCount?: number;
+  loyaltyStats?: UserLoyaltyStats;
+  onCheckInDaily?: () => Promise<{ stats: UserLoyaltyStats; alreadyCheckedIn: boolean }>;
   onGoToFavorites?: () => void;
   onGoToKitchen?: () => void;
   onLogout: () => void;
@@ -108,6 +112,8 @@ export const UserProfilePage: React.FC<UserProfilePageProps> = ({
   isCreatorMode,
   isSpicyAllowed = false,
   favoritesCount = 0,
+  loyaltyStats,
+  onCheckInDaily,
   onLogout,
   onLoginWithGoogle,
   isSigningIn,
@@ -889,27 +895,179 @@ export const UserProfilePage: React.FC<UserProfilePageProps> = ({
     showNotification('✓ Đã tải file sao lưu danh sách email về máy tính!');
   };
 
-  // Customer loyalty badge title
-  const customerRank = (() => {
-    if (favoritesCount >= 9)
-      return {
-        title: 'Bảo Kê Quầy Bánh Cáo Bel',
-        color: 'text-[#E57C29] bg-[#FFF3E0] border-[#FFE082]',
-      };
-    if (favoritesCount >= 4)
-      return {
-        title: 'Thực Khách Sành Ăn',
-        color: 'text-[#C84B31] bg-[#FDECE8] border-[#FCA5A5]',
-      };
-    if (favoritesCount >= 1)
-      return {
-        title: 'Mối Ruột Mê Bánh',
-        color: 'text-[#2E7D32] bg-[#E8F5E9] border-[#A5D6A7]',
-      };
-    return {
-      title: 'Khách Vãng Lai Tò Mò',
+  // Loyalty stats calculation: Average of Character Play Count & Daily Manual Check-in Visits
+  const todayStr = getLocalDateString();
+  const hasCheckedInToday = Boolean(
+    loyaltyStats?.lastVisitDate === todayStr ||
+      loyaltyStats?.visitHistory?.includes(todayStr)
+  );
+  const charPlays = Math.max(0, loyaltyStats?.playCount ?? 0);
+  const dailyVisits = Math.max(0, loyaltyStats?.visitDaysCount ?? 0);
+  const currentStreak = Math.max(0, loyaltyStats?.currentStreak ?? 0);
+  const bestStreak = Math.max(currentStreak, loyaltyStats?.bestStreak ?? 0);
+  const loyaltyScore = Number(((charPlays + dailyVisits) / 2).toFixed(1));
+
+  const [showAllTiers, setShowAllTiers] = useState(false);
+  const [isCheckingIn, setIsCheckingIn] = useState(false);
+
+  const handleCheckInClick = async () => {
+    if (!onCheckInDaily || hasCheckedInToday || isCheckingIn) return;
+    setIsCheckingIn(true);
+    try {
+      const res = await onCheckInDaily();
+      if (!res.alreadyCheckedIn) {
+        showNotification(
+          `🔥 Điểm danh thành công! Bạn đã giữ lửa Streak ${res.stats.currentStreak} ngày!`
+        );
+      }
+    } finally {
+      setIsCheckingIn(false);
+    }
+  };
+
+  const LOYALTY_TIERS = [
+    {
+      level: 1,
+      minScore: 0,
+      maxScore: 10,
+      title: 'Khách vãng lai tò mò',
+      badge: 'Mốc 1',
       color: 'text-[#6D4C41] bg-[#EFEBE9] border-[#D7CCC8]',
-    };
+      desc: 'Mới ghé quầy bánh Takoyaki Cáo Bel làm quen mùi thơm.',
+    },
+    {
+      level: 2,
+      minScore: 10,
+      maxScore: 30,
+      title: 'Khách quen của tiệm',
+      badge: 'Mốc 2',
+      color: 'text-[#558B2F] bg-[#F1F8E9] border-[#C5E1A5]',
+      desc: 'Bắt đầu mê lớp vỏ giòn rụm và sốt béo ngậy của tiệm.',
+    },
+    {
+      level: 3,
+      minScore: 30,
+      maxScore: 70,
+      title: 'Mối ruột tiệm bánh',
+      badge: 'Mốc 3',
+      color: 'text-[#2E7D32] bg-[#E8F5E9] border-[#A5D6A7]',
+      desc: 'Đã quen vị bánh nóng hổi vừa thổi vừa ăn tại quầy.',
+    },
+    {
+      level: 4,
+      minScore: 70,
+      maxScore: 140,
+      title: 'Người nghiện takoyaki',
+      badge: 'Mốc 4',
+      color: 'text-[#00838F] bg-[#E0F7FA] border-[#80DEEA]',
+      desc: 'Ghé tiệm thường xuyên, nhớ mặt từng viên bánh trên khuôn.',
+    },
+    {
+      level: 5,
+      minScore: 140,
+      maxScore: 250,
+      title: 'Thượng khách của tiệm',
+      badge: 'Mốc 5',
+      color: 'text-[#0277BD] bg-[#E1F5FE] border-[#81D4FA]',
+      desc: 'Sành sỏi mọi hương vị từ truyền thống đến cay tê.',
+    },
+    {
+      level: 6,
+      minScore: 250,
+      maxScore: 400,
+      title: 'Tri kỷ của takoyaki',
+      badge: 'Mốc 6',
+      color: 'text-[#D84315] bg-[#FBE9E7] border-[#FFAB91]',
+      desc: 'Mẻ bánh nào vừa ra lò là có mặt thưởng thức liền tay!',
+    },
+    {
+      level: 7,
+      minScore: 400,
+      maxScore: 600,
+      title: 'Người Giữ Lửa Takoyaki',
+      badge: 'Mốc 7',
+      color: 'text-[#C84B31] bg-[#FDECE8] border-[#FCA5A5]',
+      desc: 'Nắm rõ câu chuyện của từng nhân vật trong hộp bánh.',
+    },
+    {
+      level: 8,
+      minScore: 600,
+      maxScore: 850,
+      title: 'Đại sứ takoyaki',
+      badge: 'Mốc 8',
+      color: 'text-[#8E24AA] bg-[#F3E5F5] border-[#CE93D8]',
+      desc: 'Khách VIP đóng họ đều đặn, Cáo Bel nhìn thấy là mừng rỡ!',
+    },
+    {
+      level: 9,
+      minScore: 850,
+      maxScore: 1200,
+      title: 'Bảo vật nhà Cáo',
+      badge: 'Mốc 9',
+      color: 'text-[#AD1457] bg-[#FCE4EC] border-[#F48FB1]',
+      desc: 'Gắn bó bền bỉ cùng quầy bánh qua bao mùa lễ hội.',
+    },
+    {
+      level: 10,
+      minScore: 1200,
+      maxScore: 2000,
+      title: 'Huyền thoại takoyaki',
+      badge: 'Mốc 10',
+      color: 'text-[#E57C29] bg-[#FFF3E0] border-[#FFE082]',
+      desc: 'Huyền thoại trên 1000 điểm của tiệm Takoyaki Cáo Bel!',
+    },
+  ];
+
+  const activeTierIndex = (() => {
+    for (let i = LOYALTY_TIERS.length - 1; i >= 0; i--) {
+      if (loyaltyScore >= LOYALTY_TIERS[i].minScore) return i;
+    }
+    return 0;
+  })();
+
+  const currentTier = LOYALTY_TIERS[activeTierIndex];
+  const nextTier = LOYALTY_TIERS[activeTierIndex + 1] || null;
+  const levelProgressPercent = nextTier
+    ? Math.min(
+        100,
+        Math.max(
+          4,
+          Math.round(
+            ((loyaltyScore - currentTier.minScore) /
+              (nextTier.minScore - currentTier.minScore)) *
+              100
+          )
+        )
+      )
+    : 100;
+
+  const customerRank = {
+    title: currentTier.title,
+    color: currentTier.color,
+  };
+
+  // Build current week calendar strip starting from Monday (T2) to Sunday (CN)
+  const recent7Days = (() => {
+    const now = new Date();
+    const currentDay = now.getDay(); // 0 = CN, 1 = T2, ..., 6 = T7
+    const diffToMonday = currentDay === 0 ? -6 : 1 - currentDay;
+    const monday = new Date(now);
+    monday.setDate(now.getDate() + diffToMonday);
+    const dayNames = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
+
+    return Array.from({ length: 7 }, (_, idx) => {
+      const d = new Date(monday);
+      d.setDate(monday.getDate() + idx);
+      const dateStr = getLocalDateString(d);
+      const visited = Boolean(loyaltyStats?.visitHistory?.includes(dateStr));
+      return {
+        dateStr,
+        label: dayNames[d.getDay()],
+        dayNum: d.getDate(),
+        visited,
+        isToday: dateStr === todayStr,
+      };
+    });
   })();
 
   // Filter whitelist for search
@@ -946,7 +1104,7 @@ export const UserProfilePage: React.FC<UserProfilePageProps> = ({
 
           <div className="space-y-2">
             <h2 className="font-display text-2xl sm:text-3xl font-bold text-[#432314]">
-              Ghé tiệm Takoyaki Cáo Bel
+              Trở thành khách guột của tiệm nhé?
             </h2>
             <p className="text-sm text-[#846C5B] max-w-md mx-auto leading-relaxed">
               Đăng nhập bằng tài khoản Google để lưu bánh vào hộp, gửi ảnh xác minh độ tuổi 18+ mở khóa thực đơn Vị Cay Tê và lưu giữ danh hiệu khách quen của bạn!
@@ -1084,6 +1242,268 @@ export const UserProfilePage: React.FC<UserProfilePageProps> = ({
                   ? 'Ảnh xác minh độ tuổi của bạn đã được gửi tới quầy của Cáo Bel. Ngay khi Cáo bấm duyệt, khay bánh Vị Cay Tê sẽ tự động mở khóa cho bạn!'
                   : 'Khay bánh Vị Cay Tê chỉ dành cho thực khách đủ 18 tuổi trở lên. Bạn hãy gửi ảnh xác minh năm sinh ở khung bên dưới để Cáo duyệt mở khóa nhé!'}
               </p>
+            </div>
+          </div>
+        </div>
+
+        {/* =========================================================================
+            2 SIDE-BY-SIDE CARDS: DANH HIỆU & THANH CẤP ĐỘ + STREAK GHÉ TIỆM
+            ========================================================================= */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* CARD 1: DANH HIỆU & THANH CẤP ĐỘ (TÍNH THEO TRUNG BÌNH LƯỢT CHƠI CHAR + NGÀY VÀO WEB) */}
+          <div className="p-5 rounded-2xl bg-[#FFFDF9] border-2 border-[#E5D3B3] shadow-xs flex flex-col justify-between space-y-4">
+            <div className="space-y-3">
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-10 h-10 rounded-xl bg-[#FFF3E0] border border-[#FFE082] flex items-center justify-center text-[#E57C29] shrink-0">
+                    <Award className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-[#846C5B]">
+                      Danh hiệu thực khách
+                    </span>
+                    <h3 className="font-display text-base sm:text-lg font-bold text-[#432314] leading-snug">
+                      {currentTier.title}
+                    </h3>
+                  </div>
+                </div>
+                <span
+                  className={`px-2.5 py-1 rounded-full text-xs font-bold border shrink-0 ${currentTier.color}`}
+                >
+                  {currentTier.badge}
+                </span>
+              </div>
+
+              <p className="text-xs text-[#7A5C4F] leading-relaxed">
+                {currentTier.desc}
+              </p>
+
+              {/* Level Progress Bar */}
+              <div className="p-3.5 rounded-xl bg-[#FAF5EB] border border-[#E5D3B3] space-y-2">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-bold text-[#432314]">
+                    Điểm danh hiệu: <span className="text-[#E57C29]">{loyaltyScore} đ</span>
+                  </span>
+                  <span className="font-semibold text-[#846C5B]">
+                    {nextTier
+                      ? `Mốc kế: ${nextTier.minScore} đ (${levelProgressPercent}%)`
+                      : 'Đã đạt cấp tối đa'}
+                  </span>
+                </div>
+
+                <div className="w-full h-3 rounded-full bg-[#E6D6C1]/70 overflow-hidden p-0.5">
+                  <div
+                    className="h-full rounded-full bg-gradient-to-r from-[#F4B942] via-[#E57C29] to-[#C84B31] transition-all duration-500"
+                    style={{ width: `${levelProgressPercent}%` }}
+                  />
+                </div>
+
+                <div className="flex items-center justify-between text-[11px] text-[#7A5C4F]">
+                  <span>{currentTier.badge}</span>
+                  {nextTier ? (
+                    <span>
+                      Còn <strong className="text-[#C84B31]">{Math.max(0, Number((nextTier.minScore - loyaltyScore).toFixed(1)))} đ</strong> lên{' '}
+                      <strong className="text-[#432314]">{nextTier.title}</strong>
+                    </span>
+                  ) : (
+                    <span className="text-[#E57C29] font-bold">Huyền thoại takoyaki</span>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Breakdown of the Average Score Formula */}
+            <div className="pt-1 space-y-2">
+              <div className="grid grid-cols-2 gap-2.5">
+                <div className="p-2.5 rounded-xl bg-[#F5EBD9]/65 border border-[#E5D3B3] text-center">
+                  <p className="text-[11px] text-[#846C5B] font-medium">Lượt thưởng thức</p>
+                  <p className="font-display text-lg font-bold text-[#432314] mt-0.5">
+                    {charPlays} <span className="text-xs font-normal text-[#7A5C4F]">lượt</span>
+                  </p>
+                </div>
+                <div className="p-2.5 rounded-xl bg-[#F5EBD9]/65 border border-[#E5D3B3] text-center">
+                  <p className="text-[11px] text-[#846C5B] font-medium">Ngày vào web</p>
+                  <p className="font-display text-lg font-bold text-[#432314] mt-0.5">
+                    {dailyVisits} <span className="text-xs font-normal text-[#7A5C4F]">ngày</span>
+                  </p>
+                </div>
+              </div>
+              <p className="text-[11px] text-center text-[#846C5B]">
+                Công thức: (Lượt chơi char <strong>{charPlays}</strong> + Ngày vào web <strong>{dailyVisits}</strong>) ÷ 2 ={' '}
+                <strong className="text-[#C84B31]">{loyaltyScore} điểm</strong>
+              </p>
+
+              {/* Toggle to view all 10 milestones up to 1200+ points */}
+              <div className="pt-1">
+                <button
+                  type="button"
+                  onClick={() => setShowAllTiers((prev) => !prev)}
+                  className="w-full py-1.5 px-3 rounded-xl bg-[#FAF5EB] hover:bg-[#F5EBD9] border border-[#E5D3B3] text-[11px] font-bold text-[#684932] transition-colors cursor-pointer flex items-center justify-center gap-1.5"
+                >
+                  <span>
+                    {showAllTiers
+                      ? '▲ Thu gọn bảng 10 mốc danh hiệu'
+                      : '▼ Xem bảng 10 mốc danh hiệu (0 → 1200+ đ)'}
+                  </span>
+                </button>
+
+                {showAllTiers && (
+                  <div className="mt-2 p-2.5 rounded-xl bg-[#FAF5EB] border border-[#E5D3B3] max-h-52 overflow-y-auto space-y-1.5">
+                    {LOYALTY_TIERS.map((tier) => {
+                      const isCurrent = tier.level === currentTier.level;
+                      const isUnlocked = loyaltyScore >= tier.minScore;
+                      return (
+                        <div
+                          key={tier.level}
+                          className={`px-2.5 py-1.5 rounded-lg border text-xs flex items-center justify-between gap-2 ${
+                            isCurrent
+                              ? 'bg-[#FFF3E0] border-[#E57C29] font-bold text-[#432314]'
+                              : isUnlocked
+                              ? 'bg-[#FFFDF9] border-[#E5D3B3] text-[#432314]'
+                              : 'bg-[#F5EBD9]/40 border-[#E5D3B3]/60 text-[#846C5B] opacity-75'
+                          }`}
+                        >
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <span className="text-[11px] shrink-0">{tier.badge}</span>
+                            <span className="truncate">{tier.title}</span>
+                          </div>
+                          <span className="text-[11px] font-mono font-semibold shrink-0 text-[#C84B31]">
+                            {tier.minScore} đ+
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* CARD 2: STREAK CHUỖI NGÀY GHÉ TIỆM */}
+          <div className="p-5 rounded-2xl bg-[#FFFDF9] border-2 border-[#E5D3B3] shadow-xs flex flex-col justify-between space-y-4">
+            <div className="space-y-3.5">
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-10 h-10 rounded-xl bg-[#FDECE8] border border-[#FCA5A5] flex items-center justify-center text-[#C84B31] shrink-0">
+                    <Flame className="w-5 h-5 fill-current" />
+                  </div>
+                  <div>
+                    <h3 className="font-display text-base sm:text-lg font-bold text-[#432314] leading-snug">
+                      Streak
+                    </h3>
+                  </div>
+                </div>
+                {hasCheckedInToday ? (
+                  <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-[#E8F5E9] text-[#2E7D32] border border-[#A5D6A7] shrink-0">
+                    ✓ Hôm nay đã điểm danh
+                  </span>
+                ) : (
+                  <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-[#FFF3E0] text-[#E65100] border border-[#FFE082] shrink-0">
+                    ⏳ Chưa điểm danh
+                  </span>
+                )}
+              </div>
+
+              {/* Big Streak Counter */}
+              <div className="p-4 rounded-xl bg-gradient-to-br from-[#FFF7ED] to-[#FDECE8] border border-[#FCD34D] flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div
+                    className={`w-12 h-12 rounded-2xl flex items-center justify-center shadow-xs shrink-0 transition-colors ${
+                      hasCheckedInToday
+                        ? 'bg-gradient-to-br from-[#E57C29] to-[#C84B31] text-white'
+                        : 'bg-[#F5EBD9] border border-[#D4A373] text-[#C84B31]'
+                    }`}
+                  >
+                    <Flame className="w-7 h-7 fill-current" />
+                  </div>
+                  <div>
+                    <div className="flex items-baseline gap-1.5">
+                      <span className="font-display text-2xl sm:text-3xl font-extrabold text-[#C84B31]">
+                        {currentStreak}
+                      </span>
+                      <span className="font-display text-sm font-bold text-[#432314]">
+                        ngày liên tiếp
+                      </span>
+                    </div>
+                    <p className="text-xs text-[#7A5C4F]">
+                      {hasCheckedInToday
+                        ? 'Bạn đã thắp lửa bếp Takoyaki hôm nay rồi!'
+                        : 'Bấm điểm danh bên dưới để tính ngày vào web hôm nay nha!'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Weekly Calendar Strip (T2 -> CN) */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-end text-[11px] text-[#846C5B] font-semibold">
+                  <span>Kỷ lục: {bestStreak} ngày 🏆</span>
+                </div>
+                <div className="grid grid-cols-7 gap-1.5">
+                  {recent7Days.map((day) => (
+                    <div
+                      key={day.dateStr}
+                      className={`py-2 px-1 rounded-xl border text-center flex flex-col items-center justify-center gap-1 transition-all ${
+                        day.visited
+                          ? day.isToday
+                            ? 'bg-[#FFF3E0] border-[#E57C29] text-[#C84B31] shadow-2xs ring-1 ring-[#E57C29]/40'
+                            : 'bg-[#FAF5EB] border-[#D4A373] text-[#E57C29]'
+                          : day.isToday
+                          ? 'bg-[#FFFDF9] border-dashed border-[#E57C29] text-[#C84B31]'
+                          : 'bg-[#F5EBD9]/35 border-[#E5D3B3] text-[#A69080]'
+                      }`}
+                    >
+                      <span className="text-[10px] font-bold">{day.label}</span>
+                      <div
+                        className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold ${
+                          day.visited
+                            ? 'bg-[#E57C29] text-white'
+                            : day.isToday
+                            ? 'bg-[#FFF3E0] text-[#E57C29] border border-[#E57C29]/50'
+                            : 'bg-[#E5D3B3]/60 text-[#846C5B]'
+                        }`}
+                      >
+                        {day.visited ? (
+                          <Flame className="w-3.5 h-3.5 fill-current" />
+                        ) : (
+                          day.dayNum
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Check-in Button right below the 7-day strip */}
+              <div className="pt-1">
+                {hasCheckedInToday ? (
+                  <button
+                    type="button"
+                    disabled
+                    className="w-full py-3 px-4 rounded-xl bg-[#E8F5E9] border border-[#A5D6A7] text-[#2E7D32] font-display font-bold text-sm flex items-center justify-center gap-2 cursor-default"
+                  >
+                    <CheckCircle2 className="w-4 h-4 text-[#2E7D32]" />
+                    <span>Đã điểm danh hôm nay</span>
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleCheckInClick}
+                    disabled={isCheckingIn}
+                    className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-[#E57C29] to-[#C84B31] hover:from-[#D46B1A] hover:to-[#B23B22] active:scale-[0.99] text-white font-display font-bold text-sm shadow-sm hover:shadow transition-all cursor-pointer flex items-center justify-center gap-2 disabled:opacity-60"
+                  >
+                    <Flame className="w-4 h-4 fill-current animate-pulse" />
+                    <span>
+                      {isCheckingIn ? 'Đang điểm danh...' : 'Điểm danh hôm nay'}
+                    </span>
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <div className="pt-2 flex items-center justify-between text-xs text-[#7A5C4F] border-t border-[#E5D3B3]/70">
+              <span>Tổng cộng đã điểm danh: <strong className="text-[#432314]">{dailyVisits} ngày</strong></span>
+              <span>Đã lưu hộp: <strong className="text-[#432314]">{favoritesCount} viên</strong></span>
             </div>
           </div>
         </div>

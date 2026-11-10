@@ -20,6 +20,11 @@ import {
   fetchUserVerificationFromFirestore,
   fetchVerificationsFromFirestore,
   fetchNotificationSettingsFromFirestore,
+  UserLoyaltyStats,
+  loadLocalUserLoyaltyStats,
+  syncUserDailyVisitAndStats,
+  checkInUserDaily,
+  incrementUserPersonalPlayCount,
 } from './firebase';
 import {
   TakoyakiCharacter,
@@ -216,6 +221,33 @@ export default function App() {
     });
     return () => unsubscribe();
   }, []);
+
+  // User Loyalty & Daily Streak state (tracks character plays + daily web visits)
+  const [userLoyaltyStats, setUserLoyaltyStats] = useState<UserLoyaltyStats>(() =>
+    loadLocalUserLoyaltyStats(null)
+  );
+
+  useEffect(() => {
+    let isCancelled = false;
+    const uid = currentUser?.uid || null;
+    setUserLoyaltyStats(loadLocalUserLoyaltyStats(uid));
+
+    syncUserDailyVisitAndStats(uid).then((synced) => {
+      if (!isCancelled) {
+        setUserLoyaltyStats(synced);
+      }
+    });
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [currentUser?.uid]);
+
+  const handleDailyCheckIn = async () => {
+    const result = await checkInUserDaily(currentUser?.uid || null);
+    setUserLoyaltyStats(result.stats);
+    return result;
+  };
 
   // If user logs out or is not creator while on the kitchen tab, redirect to discover
   useEffect(() => {
@@ -781,7 +813,12 @@ export default function App() {
     a.click();
     document.body.removeChild(a);
 
-    // 2. Only count towards Best Seller ranking if user is logged in with a real Google account (1 account = 1 count)
+    // 2. Increment user's personal character play count for Loyalty Title & Level Bar
+    incrementUserPersonalPlayCount(currentUser?.uid || null).then((updatedStats) => {
+      setUserLoyaltyStats(updatedStats);
+    });
+
+    // 3. Only count towards Best Seller ranking if user is logged in with a real Google account (1 account = 1 count)
     if (!currentUser?.uid) return;
 
     incrementCharacterMetric(char.id, 'play');
@@ -1250,6 +1287,8 @@ export default function App() {
             isCreatorMode={isCreatorMode}
             isSpicyAllowed={isSpicyAllowed}
             favoritesCount={myBoxCharacters.length}
+            loyaltyStats={userLoyaltyStats}
+            onCheckInDaily={handleDailyCheckIn}
             onGoToFavorites={() => setActiveTab('my-box')}
             onGoToKitchen={() => setActiveTab('kitchen')}
             onLogout={handleLogout}
