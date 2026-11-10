@@ -266,3 +266,123 @@ export function playPaperBoxCloseSound(): void {
   }
 }
 
+/**
+ * Plays a realistic mechanical clock / wind-up timer "Tích - Tắc" sound
+ * for each second when the Chef Fox flips all takoyaki balls.
+ */
+export function playMicrowaveTimerTick(secondLeft = 3): void {
+  try {
+    const ctx = getAudioContext();
+    if (!ctx) return;
+
+    const now = ctx.currentTime;
+
+    const playTickOrTock = (startTime: number, isTick: boolean, isUrgent: boolean) => {
+      // 1. Crisp escapement gear click transient (short filtered noise burst)
+      const noiseSource = ctx.createBufferSource();
+      noiseSource.buffer = getNoiseBuffer(ctx);
+
+      const noiseFilter = ctx.createBiquadFilter();
+      noiseFilter.type = 'bandpass';
+      const clickFreq = isTick ? (isUrgent ? 2100 : 1850) : (isUrgent ? 1550 : 1380);
+      noiseFilter.frequency.setValueAtTime(clickFreq, startTime);
+      noiseFilter.Q.setValueAtTime(3.2, startTime);
+
+      const noiseGain = ctx.createGain();
+      noiseGain.gain.setValueAtTime(0.0001, startTime);
+      noiseGain.gain.linearRampToValueAtTime(isTick ? 0.35 : 0.26, startTime + 0.002);
+      noiseGain.gain.exponentialRampToValueAtTime(0.0001, startTime + 0.018);
+
+      noiseSource.connect(noiseFilter);
+      noiseFilter.connect(noiseGain);
+      noiseGain.connect(ctx.destination);
+
+      noiseSource.start(startTime, 0.1, 0.025);
+      noiseSource.stop(startTime + 0.025);
+
+      // 2. Warm wooden/brass clock body knock ("Tích" higher, "Tắc" lower)
+      const bodyOsc = ctx.createOscillator();
+      const bodyFilter = ctx.createBiquadFilter();
+      const bodyGain = ctx.createGain();
+
+      const startPitch = isTick ? 1180 : 880;
+      const endPitch = isTick ? 390 : 290;
+
+      bodyOsc.type = 'triangle';
+      bodyOsc.frequency.setValueAtTime(startPitch, startTime);
+      bodyOsc.frequency.exponentialRampToValueAtTime(endPitch, startTime + 0.028);
+
+      bodyFilter.type = 'lowpass';
+      bodyFilter.frequency.setValueAtTime(2400, startTime);
+
+      bodyGain.gain.setValueAtTime(0.0001, startTime);
+      bodyGain.gain.linearRampToValueAtTime(isTick ? 0.32 : 0.25, startTime + 0.002);
+      bodyGain.gain.exponentialRampToValueAtTime(0.0001, startTime + 0.038);
+
+      bodyOsc.connect(bodyFilter);
+      bodyFilter.connect(bodyGain);
+      bodyGain.connect(ctx.destination);
+
+      bodyOsc.start(startTime);
+      bodyOsc.stop(startTime + 0.042);
+    };
+
+    const isLastSecond = secondLeft === 1;
+    // "Tích" on the beat (0.0s) and "Tắc" on the half-beat (+0.5s)
+    playTickOrTock(now, true, isLastSecond);
+    playTickOrTock(now + 0.5, false, isLastSecond);
+  } catch {
+    // Ignore audio context errors
+  }
+}
+
+/**
+ * Plays a gentle mechanical kitchen timer bell ("Ting~") when the 3-second
+ * tick-tock countdown finishes and the takoyaki balls flip back.
+ */
+export function playMicrowaveTimerDing(): void {
+  try {
+    const ctx = getAudioContext();
+    if (!ctx) return;
+
+    const now = ctx.currentTime;
+
+    // Warm mechanical desk-bell / timer "Ting~"
+    const fundamental = 1568; // G6 warm bell
+    const overtone = 3136;
+
+    const osc1 = ctx.createOscillator();
+    const osc2 = ctx.createOscillator();
+    const gain1 = ctx.createGain();
+    const gain2 = ctx.createGain();
+
+    osc1.type = 'sine';
+    osc1.frequency.setValueAtTime(fundamental, now);
+
+    osc2.type = 'triangle';
+    osc2.frequency.setValueAtTime(overtone, now);
+
+    gain1.gain.setValueAtTime(0.0001, now);
+    gain1.gain.linearRampToValueAtTime(0.22, now + 0.005);
+    gain1.gain.exponentialRampToValueAtTime(0.0001, now + 0.45);
+
+    gain2.gain.setValueAtTime(0.0001, now);
+    gain2.gain.linearRampToValueAtTime(0.08, now + 0.003);
+    gain2.gain.exponentialRampToValueAtTime(0.0001, now + 0.18);
+
+    osc1.connect(gain1);
+    osc2.connect(gain2);
+    gain1.connect(ctx.destination);
+    gain2.connect(ctx.destination);
+
+    osc1.start(now);
+    osc2.start(now);
+    osc1.stop(now + 0.46);
+    osc2.stop(now + 0.2);
+  } catch {
+    // Ignore audio context errors
+  }
+}
+
+
+

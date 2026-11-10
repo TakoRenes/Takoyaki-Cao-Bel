@@ -408,9 +408,14 @@ export default function App() {
             for (const item of prev) {
               const s = byId.get(item.id);
               if (s) {
+                const sTime = s.updatedAt ? new Date(s.updatedAt).getTime() : 0;
+                const itemTime = item.updatedAt ? new Date(item.updatedAt).getTime() : 0;
+                const newer = itemTime > sTime ? item : s;
+                const older = itemTime > sTime ? s : item;
                 byId.set(item.id, {
-                  ...s,
-                  imagePosition: s.imagePosition || item.imagePosition || 'center',
+                  ...older,
+                  ...newer,
+                  imagePosition: newer.imagePosition || older.imagePosition || 'center',
                   playCount: Math.max(s.playCount || 0, item.playCount || 0),
                   favoriteCount: Math.max(s.favoriteCount || 0, item.favoriteCount || 0),
                 });
@@ -484,7 +489,12 @@ export default function App() {
             byId.set(item.id, item);
           }
           for (const item of cloudChars) {
-            byId.set(item.id, item);
+            const existing = byId.get(item.id);
+            byId.set(item.id, {
+              ...existing,
+              ...item,
+              imagePosition: item.imagePosition || existing?.imagePosition || 'center',
+            });
           }
           const merged = Array.from(byId.values()).sort(
             (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
@@ -869,11 +879,20 @@ export default function App() {
     // 3. Immediate local state update for zero-latency feedback
     setCharacters((prev) => {
       const idx = prev.findIndex((c) => c.id === id);
-      if (idx !== -1) {
-        return prev.map((c) => (c.id === id ? charToSave : c));
+      const next =
+        idx !== -1
+          ? prev.map((c) => (c.id === id ? charToSave : c))
+          : [charToSave, ...prev];
+      try {
+        localStorage.setItem(CHARACTERS_CACHE_KEY, JSON.stringify(next));
+      } catch {
+        // Ignore
       }
-      return [charToSave, ...prev];
+      return next;
     });
+    if (selectedCharacter?.id === id) {
+      setSelectedCharacter(charToSave);
+    }
   };
 
   // Delete Character (Creator only)
@@ -1354,6 +1373,7 @@ export default function App() {
                             src={char.artwork.startsWith('data:') ? char.artwork : char.artwork + (char.artwork.includes('?') ? '&' : '?') + 't=' + (char.updatedAt ? new Date(char.updatedAt).getTime() : Date.now())}
                             alt={char.name}
                             referrerPolicy="no-referrer"
+                            style={{ objectPosition: char.imagePosition || 'center' }}
                             className={`w-full h-full object-cover object-${char.imagePosition || 'center'}`}
                           />
                         ) : (

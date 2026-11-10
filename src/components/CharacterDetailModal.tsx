@@ -79,6 +79,7 @@ export const CharacterDetailModal: React.FC<CharacterDetailModalProps> = ({
                   src={character.artwork.startsWith('data:') ? character.artwork : character.artwork + (character.artwork.includes('?') ? '&' : '?') + 't=' + (character.updatedAt ? new Date(character.updatedAt).getTime() : Date.now())}
                   alt={character.name}
                   referrerPolicy="no-referrer"
+                  style={{ objectPosition: character.imagePosition || 'center' }}
                   className={`w-full h-full object-cover object-${character.imagePosition || 'center'}`}
                 />
               ) : (

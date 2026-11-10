@@ -3,7 +3,11 @@ import { TakoyakiCharacter } from '../types';
 import { Heart } from 'lucide-react';
 import takoyakiOriginalImg from '../assets/images/takoyaki_ball_original_1791612763230.jpg';
 import takoyakiSpicyImg from '../assets/images/takoyaki_ball_spicy_1791612777471.jpg';
-import { playTakoyakiSizzle } from '../utils/sizzleSound';
+import {
+  playTakoyakiSizzle,
+  playMicrowaveTimerTick,
+  playMicrowaveTimerDing,
+} from '../utils/sizzleSound';
 import { useSiteAssets } from '../utils/caoBelAssets';
 
 export interface WelcomeTransitionOrigin {
@@ -433,11 +437,14 @@ export const TakoyakiStallHero: React.FC<TakoyakiStallHeroProps> = ({
   const flipTimerRef = React.useRef<NodeJS.Timeout | null>(null);
   const countdownIntervalRef = React.useRef<NodeJS.Timeout | null>(null);
 
-  const stopFlipAll = React.useCallback(() => {
+  const stopFlipAll = React.useCallback((finishedNaturally = false) => {
     if (flipTimerRef.current) clearTimeout(flipTimerRef.current);
     if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
     setIsAllFlipped(false);
     setCountdown(3);
+    if (finishedNaturally) {
+      playMicrowaveTimerDing();
+    }
     playTakoyakiSizzle();
   }, []);
 
@@ -446,6 +453,7 @@ export const TakoyakiStallHero: React.FC<TakoyakiStallHeroProps> = ({
     if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
 
     playTakoyakiSizzle();
+    playMicrowaveTimerTick(3);
     setIsAllFlipped(true);
     setCountdown(3);
 
@@ -454,18 +462,20 @@ export const TakoyakiStallHero: React.FC<TakoyakiStallHeroProps> = ({
         if (prev <= 1) {
           return 0;
         }
-        return prev - 1;
+        const nextVal = prev - 1;
+        playMicrowaveTimerTick(nextVal);
+        return nextVal;
       });
     }, 1000);
 
     flipTimerRef.current = setTimeout(() => {
-      stopFlipAll();
+      stopFlipAll(true);
     }, 3000);
   }, [stopFlipAll]);
 
   const toggleFlipAll = () => {
     if (isAllFlipped) {
-      stopFlipAll();
+      stopFlipAll(false);
     } else {
       startFlipAll();
     }
@@ -784,6 +794,7 @@ export const TakoyakiStallHero: React.FC<TakoyakiStallHeroProps> = ({
                             src={char.artwork.startsWith('data:') ? char.artwork : char.artwork + (char.artwork.includes('?') ? '&' : '?') + 't=' + (char.updatedAt ? new Date(char.updatedAt).getTime() : Date.now())}
                             alt={char.name}
                             referrerPolicy="no-referrer"
+                            style={{ objectPosition: char.imagePosition || 'center' }}
                             className={`w-full h-full object-cover object-${char.imagePosition || 'center'} scale-95 group-hover:opacity-100 group-hover:scale-105 group-focus-visible:opacity-100 transition-all duration-300 ${
                               isRevealed ? 'opacity-100 scale-105' : 'opacity-0'
                             }`}
@@ -977,6 +988,7 @@ export const TakoyakiStallHero: React.FC<TakoyakiStallHeroProps> = ({
                             src={char.artwork.startsWith('data:') ? char.artwork : char.artwork + (char.artwork.includes('?') ? '&' : '?') + 't=' + (char.updatedAt ? new Date(char.updatedAt).getTime() : Date.now())}
                             alt={char.name}
                             referrerPolicy="no-referrer"
+                            style={{ objectPosition: char.imagePosition || 'center' }}
                             className={`w-full h-full object-cover object-${char.imagePosition || 'center'} scale-95 group-hover:opacity-100 group-hover:scale-105 group-focus-visible:opacity-100 transition-all duration-300 ${
                               isRevealed ? 'opacity-100 scale-105' : 'opacity-0'
                             }`}

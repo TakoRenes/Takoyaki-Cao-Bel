@@ -385,7 +385,8 @@ export const TakoyakiKitchen: React.FC<TakoyakiKitchenProps> = ({
                         src={artwork}
                         alt="Artwork preview"
                         referrerPolicy="no-referrer"
-                        className={`w-full h-full object-cover object-${imagePosition}`}
+                        style={{ objectPosition: imagePosition || 'center' }}
+                        className={`w-full h-full object-cover object-${imagePosition || 'center'}`}
                       />
                     </div>
                     <span className="text-xs text-[#7A5C4F]">
@@ -688,6 +689,7 @@ export const TakoyakiKitchen: React.FC<TakoyakiKitchenProps> = ({
                           src={char.artwork.startsWith('data:') ? char.artwork : char.artwork + (char.artwork.includes('?') ? '&' : '?') + 't=' + (char.updatedAt ? new Date(char.updatedAt).getTime() : Date.now())}
                           alt={char.name}
                           referrerPolicy="no-referrer"
+                          style={{ objectPosition: char.imagePosition || 'center' }}
                           className={`w-full h-full object-cover object-${char.imagePosition || 'center'}`}
                         />
                       ) : (
