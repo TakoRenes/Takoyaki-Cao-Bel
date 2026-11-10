@@ -532,6 +532,7 @@ export const UserProfilePage: React.FC<UserProfilePageProps> = ({
       await saveNotificationSettingsToFirestore({
         emailEnabled: emailNotifyEnabled,
         discordWebhookUrl: discordWebhookUrl.trim(),
+        spicyVerificationEnabled,
       });
       const dummyRecord: AgeVerificationRequest = {
         id: 'test_notify',

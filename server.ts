@@ -4,16 +4,6 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { createServer as createViteServer } from 'vite';
 import { initializeApp as initializeFirebaseApp } from 'firebase/app';
-
-// Manual upload handler helper
-const saveUploadedFile = (buffer: Buffer, originalName: string) => {
-  const dir = path.join(__dirname, 'public', 'uploads', 'characters');
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-  const filename = `${Date.now()}-${originalName}`;
-  const filePath = path.join(dir, filename);
-  fs.writeFileSync(filePath, buffer);
-  return `/uploads/characters/${filename}`;
-};
 import {
   getFirestore as getFirebaseFirestore,
   collection as fbCollection,
@@ -24,6 +14,38 @@ import {
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+// Manual upload handler helper
+const saveUploadedFile = (buffer: Buffer, originalName: string) => {
+  const dir = path.join(__dirname, 'public', 'uploads', 'characters');
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  const safeExt = path.extname(originalName || '').replace(/[^a-zA-Z0-9.]/g, '') || '.jpg';
+  const safeBase = path
+    .basename(originalName || 'image', path.extname(originalName || ''))
+    .replace(/[^a-zA-Z0-9_-]/g, '_')
+    .slice(0, 40) || 'image';
+  const filename = `${Date.now()}-${safeBase}${safeExt}`;
+  const filePath = path.join(dir, filename);
+  fs.writeFileSync(filePath, buffer);
+  return `/uploads/characters/${filename}`;
+};
+
+const removeUploadedFileIfUnused = (artworkUrl: string | undefined, remainingChars: StoredCharacter[]) => {
+  if (!artworkUrl || !artworkUrl.startsWith('/uploads/characters/')) return;
+  const stillUsed = remainingChars.some(
+    (c) => c.artwork === artworkUrl || c.avatar === artworkUrl || c.coverImage === artworkUrl
+  );
+  if (stillUsed) return;
+  try {
+    const relPath = artworkUrl.replace(/^\/+/, '');
+    const fullPath = path.join(__dirname, 'public', relPath);
+    if (fs.existsSync(fullPath)) {
+      fs.unlinkSync(fullPath);
+    }
+  } catch {
+    // Ignore file deletion errors
+  }
+};
 
 const DATA_DIR = path.join(__dirname, 'data');
 const DB_FILE = path.join(DATA_DIR, 'characters.json');
@@ -224,6 +246,7 @@ function ensureDatabase(): DatabaseSchema {
           is_spicy: Boolean(c.is_spicy),
           allowsMale: Boolean(c.allowsMale),
           allowsFemale: Boolean(c.allowsFemale),
+          imagePosition: c.imagePosition || 'center',
         }))
       : [];
 
@@ -389,9 +412,26 @@ async function startServer() {
   ensureDatabase();
   void hydrateFromFirestoreOnStartup();
 
-  // FIX: Đã comment lại đoạn báo lỗi upload do AI sinh ra
   app.post('/api/characters/upload', (req, res) => {
-    res.status(500).json({ error: 'Upload function is temporarily disabled.' });
+    try {
+      const { dataUrl, filename } = req.body || {};
+      if (typeof dataUrl !== 'string' || !dataUrl.startsWith('data:image/')) {
+        res.status(400).json({ error: 'Valid image dataUrl is required.' });
+        return;
+      }
+      const commaIdx = dataUrl.indexOf(',');
+      if (commaIdx === -1) {
+        res.status(400).json({ error: 'Malformed dataUrl.' });
+        return;
+      }
+      const base64Data = dataUrl.slice(commaIdx + 1);
+      const buffer = Buffer.from(base64Data, 'base64');
+      const imageUrl = saveUploadedFile(buffer, typeof filename === 'string' ? filename : 'image.jpg');
+      res.json({ imageUrl });
+    } catch (err) {
+      console.error('Character image upload error:', err);
+      res.status(500).json({ error: 'Failed to save uploaded image.' });
+    }
   });
 
   app.get('/api/characters', (_req, res) => {
@@ -450,23 +490,47 @@ async function startServer() {
         createdAt: typeof rawChar.createdAt === 'string' && rawChar.createdAt ? rawChar.createdAt : now,
         updatedAt: typeof rawChar.updatedAt === 'string' && rawChar.updatedAt ? rawChar.updatedAt : now,
         status: rawChar.status === 'draft' ? 'draft' : 'published',
+        imagePosition:
+          typeof rawChar.imagePosition === 'string' && rawChar.imagePosition
+            ? rawChar.imagePosition
+            : undefined,
       };
 
       if (existingIdx === -1) {
-        db.characters.push(normalized);
+        db.characters.push({
+          ...normalized,
+          imagePosition: normalized.imagePosition || 'center',
+        });
         changed = true;
       } else {
         const existing = db.characters[existingIdx];
-        const merged: StoredCharacter = {
-          ...existing,
-          ...normalized,
-          artwork: normalized.artwork || existing.artwork,
-          avatar: normalized.avatar || existing.avatar || normalized.artwork || existing.artwork,
-          coverImage: normalized.coverImage || existing.coverImage || normalized.artwork || existing.artwork,
-          playCount: Math.max(existing.playCount || 0, normalized.playCount || 0),
-          viewCount: Math.max(existing.viewCount || 0, normalized.viewCount || 0),
-          favoriteCount: Math.max(existing.favoriteCount || 0, normalized.favoriteCount || 0),
-        };
+        const existingTime = existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
+        const incomingTime = normalized.updatedAt ? new Date(normalized.updatedAt).getTime() : 0;
+        const isExistingNewer = existingTime > incomingTime;
+
+        const merged: StoredCharacter = isExistingNewer
+          ? {
+              ...normalized,
+              ...existing,
+              artwork: existing.artwork || normalized.artwork,
+              avatar: existing.avatar || existing.artwork || normalized.avatar || normalized.artwork,
+              coverImage: existing.coverImage || existing.artwork || normalized.coverImage || normalized.artwork,
+              imagePosition: existing.imagePosition || normalized.imagePosition || 'center',
+              playCount: Math.max(existing.playCount || 0, normalized.playCount || 0),
+              viewCount: Math.max(existing.viewCount || 0, normalized.viewCount || 0),
+              favoriteCount: Math.max(existing.favoriteCount || 0, normalized.favoriteCount || 0),
+            }
+          : {
+              ...existing,
+              ...normalized,
+              artwork: normalized.artwork || existing.artwork,
+              avatar: normalized.avatar || existing.avatar || normalized.artwork || existing.artwork,
+              coverImage: normalized.coverImage || existing.coverImage || normalized.artwork || existing.artwork,
+              imagePosition: normalized.imagePosition || existing.imagePosition || 'center',
+              playCount: Math.max(existing.playCount || 0, normalized.playCount || 0),
+              viewCount: Math.max(existing.viewCount || 0, normalized.viewCount || 0),
+              favoriteCount: Math.max(existing.favoriteCount || 0, normalized.favoriteCount || 0),
+            };
         db.characters[existingIdx] = merged;
         changed = true;
       }
@@ -572,6 +636,7 @@ async function startServer() {
         createdAt: typeof body.createdAt === 'string' && body.createdAt ? body.createdAt : now,
         updatedAt: now,
         status: body.status === 'draft' ? 'draft' : 'published',
+        imagePosition: typeof body.imagePosition === 'string' ? body.imagePosition : 'center',
       };
       db.characters.unshift(created);
       saveDatabase(db);
@@ -580,13 +645,15 @@ async function startServer() {
     }
 
     const existing = db.characters[idx];
+    const previousArtwork = existing.artwork;
+    const nextArtwork = typeof body.artwork === 'string' ? body.artwork : existing.artwork;
     const updated: StoredCharacter = {
       ...existing,
       id,
       name: typeof body.name === 'string' && body.name.trim() ? body.name.trim().slice(0, 100) : existing.name,
-      artwork: typeof body.artwork === 'string' ? body.artwork : existing.artwork,
-      avatar: typeof body.avatar === 'string' ? body.avatar : existing.avatar,
-      coverImage: typeof body.coverImage === 'string' ? body.coverImage : existing.coverImage,
+      artwork: nextArtwork,
+      avatar: typeof body.avatar === 'string' ? body.avatar : nextArtwork,
+      coverImage: typeof body.coverImage === 'string' ? body.coverImage : nextArtwork,
       shortDescription: typeof body.shortDescription === 'string' ? body.shortDescription.trim().slice(0, 300) : existing.shortDescription,
       plot: typeof body.plot === 'string' ? body.plot.trim().slice(0, 5000) : existing.plot,
       personality: typeof body.personality === 'string' ? body.personality.trim().slice(0, 4000) : existing.personality,
@@ -604,10 +671,13 @@ async function startServer() {
       allowsFemale: typeof body.allowsFemale === 'boolean' ? body.allowsFemale : Boolean(existing.allowsFemale),
       status: body.status === 'published' || body.status === 'draft' ? body.status : existing.status,
       updatedAt: now,
-      imagePosition: typeof body.imagePosition === 'string' ? body.imagePosition : existing.imagePosition,
+      imagePosition: typeof body.imagePosition === 'string' ? body.imagePosition : existing.imagePosition || 'center',
     };
 
     db.characters[idx] = updated;
+    if (previousArtwork && previousArtwork !== nextArtwork) {
+      removeUploadedFileIfUnused(previousArtwork, db.characters);
+    }
     saveDatabase(db);
     res.json({ character: updated });
   });
@@ -615,12 +685,16 @@ async function startServer() {
   app.delete('/api/characters/:id', (req, res) => {
     const db = ensureDatabase();
     const { id } = req.params;
+    const target = db.characters.find((c) => c.id === id);
     const initialLen = db.characters.length;
     db.characters = db.characters.filter((c) => c.id !== id);
 
     if (db.characters.length === initialLen) {
       res.status(404).json({ error: 'Character not found.' });
       return;
+    }
+    if (target?.artwork) {
+      removeUploadedFileIfUnused(target.artwork, db.characters);
     }
     saveDatabase(db);
     res.json({ success: true });

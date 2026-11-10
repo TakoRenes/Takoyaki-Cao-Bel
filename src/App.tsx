@@ -19,6 +19,7 @@ import {
   checkSpicyEmailInFirestore,
   fetchUserVerificationFromFirestore,
   fetchVerificationsFromFirestore,
+  fetchNotificationSettingsFromFirestore,
 } from './firebase';
 import {
   TakoyakiCharacter,
@@ -107,14 +108,11 @@ export default function App() {
 
   // Check spicy access whenever currentUser changes (Web Server + Browser localStorage cache)
   useEffect(() => {
-    if (!currentUser?.email) {
-      setIsSpicyAllowed(false);
-      return;
-    }
-    const cleanEmail = currentUser.email.trim().toLowerCase();
-    const vipCacheKey = `takoyaki_spicy_vip_${cleanEmail}`;
+    let isCancelled = false;
+    const cleanEmail = currentUser?.email ? currentUser.email.trim().toLowerCase() : '';
+    const vipCacheKey = cleanEmail ? `takoyaki_spicy_vip_${cleanEmail}` : '';
 
-    if (isCreatorMode) {
+    if (isCreatorMode && vipCacheKey) {
       setIsSpicyAllowed(true);
       try {
         localStorage.setItem(vipCacheKey, 'true');
@@ -125,21 +123,24 @@ export default function App() {
     }
 
     // 1. Instant check from browser localStorage cache
-    try {
-      if (localStorage.getItem(vipCacheKey) === 'true') {
-        setIsSpicyAllowed(true);
+    if (vipCacheKey) {
+      try {
+        if (localStorage.getItem(vipCacheKey) === 'true') {
+          setIsSpicyAllowed(true);
+        }
+      } catch {
+        // Ignore
       }
-    } catch {
-      // Ignore
     }
 
     // 2. Verify with Web Server, Static JSON (GitHub Pages), and Firestore Cloud
-    let isCancelled = false;
     async function checkSpicyAccess() {
       let allowed = false;
       const settings = await fetchNotificationSettingsFromFirestore();
       if (settings.spicyVerificationEnabled === false) {
         allowed = true;
+      } else if (!cleanEmail) {
+        allowed = false;
       } else {
         try {
           const res = await fetch(
@@ -188,14 +189,16 @@ export default function App() {
 
       if (!isCancelled) {
         setIsSpicyAllowed(allowed);
-        try {
-          if (allowed) {
-            localStorage.setItem(vipCacheKey, 'true');
-          } else {
-            localStorage.removeItem(vipCacheKey);
+        if (vipCacheKey) {
+          try {
+            if (allowed && settings.spicyVerificationEnabled !== false) {
+              localStorage.setItem(vipCacheKey, 'true');
+            } else if (!allowed) {
+              localStorage.removeItem(vipCacheKey);
+            }
+          } catch {
+            // Ignore
           }
-        } catch {
-          // Ignore
         }
       }
     }
@@ -203,7 +206,7 @@ export default function App() {
     return () => {
       isCancelled = true;
     };
-  }, [currentUser, isCreatorMode]);
+  }, [currentUser, isCreatorMode, activeTab]);
 
   // Listen to Firebase Auth state changes
   useEffect(() => {
@@ -396,6 +399,7 @@ export default function App() {
             avatar: c.avatar || c.artwork || '',
             coverImage: c.coverImage || c.artwork || '',
             is_spicy: Boolean(c.is_spicy),
+            imagePosition: c.imagePosition || 'center',
           }));
           setCharacters((prev) => {
             if (prev.length === 0) return formatted;
@@ -406,6 +410,7 @@ export default function App() {
               if (s) {
                 byId.set(item.id, {
                   ...s,
+                  imagePosition: s.imagePosition || item.imagePosition || 'center',
                   playCount: Math.max(s.playCount || 0, item.playCount || 0),
                   favoriteCount: Math.max(s.favoriteCount || 0, item.favoriteCount || 0),
                 });
@@ -1346,10 +1351,10 @@ export default function App() {
                       <div className="w-11 h-11 rounded-full overflow-hidden bg-[#F5EBD9] border border-[#D4A373] shrink-0 flex items-center justify-center">
                         {char.artwork ? (
                           <img
-                            src={char.artwork}
+                            src={char.artwork.startsWith('data:') ? char.artwork : char.artwork + (char.artwork.includes('?') ? '&' : '?') + 't=' + (char.updatedAt ? new Date(char.updatedAt).getTime() : Date.now())}
                             alt={char.name}
                             referrerPolicy="no-referrer"
-                            className="w-full h-full object-cover"
+                            className={`w-full h-full object-cover object-${char.imagePosition || 'center'}`}
                           />
                         ) : (
                           <span className="font-display text-sm text-[#432314]">

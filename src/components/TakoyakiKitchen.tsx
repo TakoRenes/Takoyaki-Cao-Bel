@@ -176,32 +176,25 @@ export const TakoyakiKitchen: React.FC<TakoyakiKitchenProps> = ({
         if (ctx) {
           ctx.drawImage(img, 0, 0, width, height);
           const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.85);
-          
-          // Convert DataURL to File
-          fetch(compressedDataUrl)
-            .then(res => res.blob())
-            .then(blob => {
-              const file = new File([blob], "image.jpg", { type: "image/jpeg" });
-              const formData = new FormData();
-              formData.append('image', file);
-              
-              return fetch('/api/characters/upload', {
-                method: 'POST',
-                body: formData,
-              });
-            })
-            .then(res => res.json())
-            .then(data => {
-              if (data.imageUrl) {
+
+          fetch('/api/characters/upload', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              dataUrl: compressedDataUrl,
+              filename: file.name || 'character.jpg',
+            }),
+          })
+            .then((res) => res.json())
+            .then((data) => {
+              if (data && data.imageUrl) {
                 setArtwork(data.imageUrl);
               } else {
-                console.error('Upload failed:', data);
-                setArtwork(compressedDataUrl); // Fallback
+                setArtwork(compressedDataUrl);
               }
             })
-            .catch(err => {
-              console.error('Upload error:', err);
-              setArtwork(compressedDataUrl); // Fallback
+            .catch(() => {
+              setArtwork(compressedDataUrl);
             });
         } else {
           setArtwork(dataUrl);
@@ -692,10 +685,10 @@ export const TakoyakiKitchen: React.FC<TakoyakiKitchenProps> = ({
                     <div className="w-full h-full rounded-full overflow-hidden bg-[#FDF8F0]">
                       {char.artwork ? (
                         <img
-                          src={char.artwork}
+                          src={char.artwork.startsWith('data:') ? char.artwork : char.artwork + (char.artwork.includes('?') ? '&' : '?') + 't=' + (char.updatedAt ? new Date(char.updatedAt).getTime() : Date.now())}
                           alt={char.name}
                           referrerPolicy="no-referrer"
-                          className="w-full h-full object-cover"
+                          className={`w-full h-full object-cover object-${char.imagePosition || 'center'}`}
                         />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center font-display text-sm text-[#3D251E]">

@@ -252,6 +252,7 @@ export function subscribeToCharacters(
             createdAt: data.createdAt || new Date().toISOString(),
             updatedAt: data.updatedAt || new Date().toISOString(),
             status: data.status === 'draft' ? 'draft' : 'published',
+            imagePosition: typeof data.imagePosition === 'string' && data.imagePosition ? data.imagePosition : undefined,
           });
         }
       });
@@ -307,6 +308,7 @@ export async function saveCharacterToFirestore(char: TakoyakiCharacter): Promise
       createdAt: char.createdAt || new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       status: char.status === 'draft' ? 'draft' : 'published',
+      imagePosition: char.imagePosition || 'center',
     };
     await setDoc(doc(db, 'characters', safeId), payload);
   } catch (error) {
@@ -687,6 +689,7 @@ export async function fetchNotificationSettingsFromFirestore(): Promise<AdminNot
         cachedSettings = {
           emailEnabled: parsed.emailEnabled !== false,
           discordWebhookUrl: String(parsed.discordWebhookUrl || ''),
+          spicyVerificationEnabled: parsed.spicyVerificationEnabled !== false,
           updatedAt: parsed.updatedAt,
         };
       }
