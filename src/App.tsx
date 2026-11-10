@@ -137,47 +137,52 @@ export default function App() {
     let isCancelled = false;
     async function checkSpicyAccess() {
       let allowed = false;
-      try {
-        const res = await fetch(
-          `/api/spicy-access/check?email=${encodeURIComponent(cleanEmail)}`
-        );
-        if (res.ok && res.headers.get('content-type')?.includes('application/json')) {
-          const data = await res.json();
-          if (data.allowed) allowed = true;
-        }
-      } catch {
-        // Fallback for GitHub Pages static hosting
-      }
-
-      if (!allowed) {
+      const settings = await fetchNotificationSettingsFromFirestore();
+      if (settings.spicyVerificationEnabled === false) {
+        allowed = true;
+      } else {
         try {
-          const staticRes = await fetch(`${import.meta.env.BASE_URL}data/spicy_whitelist.json`);
-          if (staticRes.ok) {
-            const list = await staticRes.json();
-            if (
-              Array.isArray(list) &&
-              list.some((w: { email?: string }) => w?.email?.trim().toLowerCase() === cleanEmail)
-            ) {
-              allowed = true;
-            }
+          const res = await fetch(
+            `/api/spicy-access/check?email=${encodeURIComponent(cleanEmail)}`
+          );
+          if (res.ok && res.headers.get('content-type')?.includes('application/json')) {
+            const data = await res.json();
+            if (data.allowed) allowed = true;
           }
         } catch {
-          // Ignore
+          // Fallback for GitHub Pages static hosting
         }
-      }
 
-      if (!allowed) {
-        const inCloud = await checkSpicyEmailInFirestore(cleanEmail);
-        if (inCloud) allowed = true;
-      }
+        if (!allowed) {
+          try {
+            const staticRes = await fetch(`${import.meta.env.BASE_URL}data/spicy_whitelist.json`);
+            if (staticRes.ok) {
+              const list = await staticRes.json();
+              if (
+                Array.isArray(list) &&
+                list.some((w: { email?: string }) => w?.email?.trim().toLowerCase() === cleanEmail)
+              ) {
+                allowed = true;
+              }
+            }
+          } catch {
+            // Ignore
+          }
+        }
 
-      if (!allowed && currentUser?.uid) {
-        const verifyRecord = await fetchUserVerificationFromFirestore(
-          currentUser.uid,
-          cleanEmail
-        );
-        if (verifyRecord?.status === 'verified') {
-          allowed = true;
+        if (!allowed) {
+          const inCloud = await checkSpicyEmailInFirestore(cleanEmail);
+          if (inCloud) allowed = true;
+        }
+
+        if (!allowed && currentUser?.uid) {
+          const verifyRecord = await fetchUserVerificationFromFirestore(
+            currentUser.uid,
+            cleanEmail
+          );
+          if (verifyRecord?.status === 'verified') {
+            allowed = true;
+          }
         }
       }
 
@@ -218,6 +223,7 @@ export default function App() {
 
   // Creator live pending 18+ verification requests counter (ONLY for hoangyendo1212@gmail.com)
   const [pendingVerificationsCount, setPendingVerificationsCount] = useState<number>(0);
+  const [spicyVerificationEnabled, setSpicyVerificationEnabled] = useState<boolean>(true);
 
   useEffect(() => {
     const isStrictCreator =
@@ -1015,6 +1021,8 @@ export default function App() {
 
   return (
     <div className="min-h-screen flex flex-col bg-[#FAF5EB] text-[#432314]">
+      {/* Forced Tailwind generation */}
+      <div className="hidden object-top object-center object-bottom" />
       {/* Top Bar Navigation (Hidden on the Welcome Cover Page) */}
       {activeTab !== 'welcome' && (
         <Navbar

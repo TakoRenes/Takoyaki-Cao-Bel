@@ -666,6 +666,7 @@ export async function deleteVerificationFromFirestore(id: string): Promise<void>
 export interface AdminNotificationSettings {
   emailEnabled: boolean;
   discordWebhookUrl: string;
+  spicyVerificationEnabled: boolean;
   updatedAt?: string;
 }
 
@@ -676,6 +677,7 @@ export async function fetchNotificationSettingsFromFirestore(): Promise<AdminNot
   let cachedSettings: AdminNotificationSettings = {
     emailEnabled: true,
     discordWebhookUrl: '',
+    spicyVerificationEnabled: true,
   };
   try {
     const localRaw = localStorage.getItem(NOTIFICATION_CACHE_KEY);
@@ -700,6 +702,7 @@ export async function fetchNotificationSettingsFromFirestore(): Promise<AdminNot
       const cloudSettings: AdminNotificationSettings = {
         emailEnabled: data.emailEnabled !== false,
         discordWebhookUrl: String(data.discordWebhookUrl || '').trim(),
+        spicyVerificationEnabled: data.spicyVerificationEnabled !== false,
         updatedAt: String(data.updatedAt || ''),
       };
       try {
@@ -722,6 +725,7 @@ export async function saveNotificationSettingsToFirestore(
   const payload = {
     emailEnabled: settings.emailEnabled !== false,
     discordWebhookUrl: (settings.discordWebhookUrl || '').trim(),
+    spicyVerificationEnabled: settings.spicyVerificationEnabled !== false,
     updatedAt: new Date().toISOString(),
   };
 

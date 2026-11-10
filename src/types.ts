@@ -39,6 +39,7 @@ export interface TakoyakiCharacter {
   updatedAt: string;
   status: CharacterStatus;
   crop?: { x: number; y: number; zoom: number };
+  imagePosition?: string;
 }
 
 export interface CharacterCreateInput {
@@ -63,6 +64,7 @@ export interface CharacterCreateInput {
   allowsFemale?: boolean;
   status: CharacterStatus;
   crop?: { x: number; y: number; zoom: number };
+  imagePosition?: string;
 }
 
 export interface FeedbackReview {

@@ -158,7 +158,7 @@ export const TakoyakiTraySection: React.FC<TakoyakiTraySectionProps> = ({
                         <div className="w-full h-full rounded-full overflow-hidden bg-[#FDF8F0]">
                           {char.artwork ? (
                             <img
-                              src={char.artwork}
+                              src={char.artwork.startsWith('data:') ? char.artwork : char.artwork + (char.artwork.includes('?') ? '&' : '?') + 't=' + (char.updatedAt ? new Date(char.updatedAt).getTime() : Date.now())}
                               alt={char.name}
                               referrerPolicy="no-referrer"
                               className={`w-full h-full object-cover object-${char.imagePosition || 'center'}`}
@@ -470,10 +470,10 @@ export const TakoyakiTraySection: React.FC<TakoyakiTraySectionProps> = ({
                       <div className="relative w-full h-full rounded-full overflow-hidden bg-[#302119]">
                         {char.artwork ? (
                           <img
-                            src={char.artwork}
+                            src={char.artwork.startsWith('data:') ? char.artwork : char.artwork + (char.artwork.includes('?') ? '&' : '?') + 't=' + (char.updatedAt ? new Date(char.updatedAt).getTime() : Date.now())}
                             alt={char.name}
                             referrerPolicy="no-referrer"
-                            className={`w-full h-full object-cover object-top scale-95 group-hover:opacity-100 group-hover:scale-105 transition-all duration-300 ${
+                            className={`w-full h-full object-cover object-${char.imagePosition || 'center'} scale-95 group-hover:opacity-100 group-hover:scale-105 transition-all duration-300 ${
                               isRevealed ? 'opacity-100 scale-105' : 'opacity-0'
                             }`}
                           />

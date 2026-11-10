@@ -76,10 +76,10 @@ export const CharacterDetailModal: React.FC<CharacterDetailModalProps> = ({
             <div className="relative shrink-0 mx-auto sm:mx-0 w-32 h-44 sm:w-44 sm:h-60 rounded-2xl overflow-hidden shadow-lg border border-[#D4A373]/50">
               {character.artwork ? (
                 <img
-                  src={character.artwork}
+                  src={character.artwork.startsWith('data:') ? character.artwork : character.artwork + (character.artwork.includes('?') ? '&' : '?') + 't=' + (character.updatedAt ? new Date(character.updatedAt).getTime() : Date.now())}
                   alt={character.name}
                   referrerPolicy="no-referrer"
-                  className="w-full h-full object-cover object-top"
+                  className={`w-full h-full object-cover object-${character.imagePosition || 'center'}`}
                 />
               ) : (
                 <div className="w-full h-full flex items-center justify-center font-display text-4xl text-[#E8833A] bg-[#FFFDF9]">

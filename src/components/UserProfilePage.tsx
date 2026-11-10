@@ -155,6 +155,7 @@ export const UserProfilePage: React.FC<UserProfilePageProps> = ({
   const [showNotifySettings, setShowNotifySettings] = useState(false);
   const [emailNotifyEnabled, setEmailNotifyEnabled] = useState(true);
   const [discordWebhookUrl, setDiscordWebhookUrl] = useState('');
+  const [spicyVerificationEnabled, setSpicyVerificationEnabled] = useState(true);
   const [isSavingNotify, setIsSavingNotify] = useState(false);
   const [isTestingNotify, setIsTestingNotify] = useState(false);
 
@@ -517,6 +518,7 @@ export const UserProfilePage: React.FC<UserProfilePageProps> = ({
       await saveNotificationSettingsToFirestore({
         emailEnabled: emailNotifyEnabled,
         discordWebhookUrl: discordWebhookUrl.trim(),
+        spicyVerificationEnabled,
       });
       showNotification('✓ Đã lưu cài đặt nhận thông báo duyệt ảnh 18+!');
     } finally {
@@ -1411,6 +1413,29 @@ export const UserProfilePage: React.FC<UserProfilePageProps> = ({
                       type="checkbox"
                       checked={emailNotifyEnabled}
                       onChange={(e) => setEmailNotifyEnabled(e.target.checked)}
+                      className="w-4 h-4 accent-[#E57C29] rounded cursor-pointer shrink-0"
+                    />
+                  </label>
+                </div>
+
+                {/* Option: Spicy Verification Toggle */}
+                <div className="p-3.5 rounded-xl bg-white border border-[#E5D3B3] space-y-2">
+                  <label className="flex items-center justify-between gap-3 cursor-pointer">
+                    <div className="flex items-center gap-2.5">
+                      <Flame className="w-4 h-4 text-[#C84B31] shrink-0" />
+                      <div>
+                        <p className="text-xs sm:text-sm font-bold text-[#432314]">
+                          Thả cảng Vị cay tê (Bỏ qua duyệt 18+)
+                        </p>
+                        <p className="text-[11px] text-[#846C5B]">
+                          Khi bật, thực khách sẽ không cần gửi ảnh xác minh để mở Vị cay tê.
+                        </p>
+                      </div>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={spicyVerificationEnabled}
+                      onChange={(e) => setSpicyVerificationEnabled(e.target.checked)}
                       className="w-4 h-4 accent-[#E57C29] rounded cursor-pointer shrink-0"
                     />
                   </label>

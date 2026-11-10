@@ -781,10 +781,10 @@ export const TakoyakiStallHero: React.FC<TakoyakiStallHeroProps> = ({
                       <div className="relative w-full h-full rounded-full overflow-hidden bg-[#302119]">
                         {char.artwork ? (
                           <img
-                            src={char.artwork}
+                            src={char.artwork + (char.artwork.includes('?') ? '&' : '?') + 't=' + (char.updatedAt ? new Date(char.updatedAt).getTime() : Date.now())}
                             alt={char.name}
                             referrerPolicy="no-referrer"
-                            className={`w-full h-full object-cover object-top scale-95 group-hover:opacity-100 group-hover:scale-105 group-focus-visible:opacity-100 transition-all duration-300 ${
+                            className={`w-full h-full object-cover object-${char.imagePosition || 'center'} scale-95 group-hover:opacity-100 group-hover:scale-105 group-focus-visible:opacity-100 transition-all duration-300 ${
                               isRevealed ? 'opacity-100 scale-105' : 'opacity-0'
                             }`}
                           />
@@ -974,10 +974,10 @@ export const TakoyakiStallHero: React.FC<TakoyakiStallHeroProps> = ({
                       <div className="relative w-full h-full rounded-full overflow-hidden bg-[#341D17]">
                         {char.artwork ? (
                           <img
-                            src={char.artwork + (char.artwork.includes('?') ? '&' : '?') + 't=' + new Date(char.updatedAt).getTime()}
+                            src={char.artwork.startsWith('data:') ? char.artwork : char.artwork + (char.artwork.includes('?') ? '&' : '?') + 't=' + (char.updatedAt ? new Date(char.updatedAt).getTime() : Date.now())}
                             alt={char.name}
                             referrerPolicy="no-referrer"
-                            className={`w-full h-full object-cover object-top scale-95 group-hover:opacity-100 group-hover:scale-105 group-focus-visible:opacity-100 transition-all duration-300 ${
+                            className={`w-full h-full object-cover object-${char.imagePosition || 'center'} scale-95 group-hover:opacity-100 group-hover:scale-105 group-focus-visible:opacity-100 transition-all duration-300 ${
                               isRevealed ? 'opacity-100 scale-105' : 'opacity-0'
                             }`}
                           />

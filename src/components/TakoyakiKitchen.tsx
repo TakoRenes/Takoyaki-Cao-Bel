@@ -176,7 +176,33 @@ export const TakoyakiKitchen: React.FC<TakoyakiKitchenProps> = ({
         if (ctx) {
           ctx.drawImage(img, 0, 0, width, height);
           const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.85);
-          setArtwork(compressedDataUrl);
+          
+          // Convert DataURL to File
+          fetch(compressedDataUrl)
+            .then(res => res.blob())
+            .then(blob => {
+              const file = new File([blob], "image.jpg", { type: "image/jpeg" });
+              const formData = new FormData();
+              formData.append('image', file);
+              
+              return fetch('/api/characters/upload', {
+                method: 'POST',
+                body: formData,
+              });
+            })
+            .then(res => res.json())
+            .then(data => {
+              if (data.imageUrl) {
+                setArtwork(data.imageUrl);
+              } else {
+                console.error('Upload failed:', data);
+                setArtwork(compressedDataUrl); // Fallback
+              }
+            })
+            .catch(err => {
+              console.error('Upload error:', err);
+              setArtwork(compressedDataUrl); // Fallback
+            });
         } else {
           setArtwork(dataUrl);
         }

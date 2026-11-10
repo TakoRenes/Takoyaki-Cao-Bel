@@ -4,6 +4,19 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { createServer as createViteServer } from 'vite';
 import { initializeApp as initializeFirebaseApp } from 'firebase/app';
+// Removed multer
+
+// ... (other imports)
+
+// Manual upload handler helper
+const saveUploadedFile = (buffer: Buffer, originalName: string) => {
+  const dir = path.join(__dirname, 'public', 'uploads', 'characters');
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  const filename = `${Date.now()}-${originalName}`;
+  const filePath = path.join(dir, filename);
+  fs.writeFileSync(filePath, buffer);
+  return `/uploads/characters/${filename}`;
+};
 import {
   getFirestore as getFirebaseFirestore,
   collection as fbCollection,
@@ -60,6 +73,7 @@ interface StoredCharacter {
   createdAt: string;
   updatedAt: string;
   status: 'draft' | 'published';
+  imagePosition?: string;
 }
 
 interface StoredFeedback {
@@ -302,6 +316,7 @@ function saveDatabase(data: DatabaseSchema): void {
         artwork,
         avatar: c.avatar && c.avatar !== artwork ? c.avatar : '',
         coverImage: c.coverImage && c.coverImage !== artwork ? c.coverImage : '',
+        imagePosition: c.imagePosition,
       };
     }),
   };
@@ -399,6 +414,16 @@ async function startServer() {
   // Initialize stall database and run background cloud hydration
   ensureDatabase();
   void hydrateFromFirestoreOnStartup();
+
+  // POST upload character artwork
+  app.post('/api/characters/upload', upload.single('image'), (req, res) => {
+    if (!req.file) {
+      res.status(400).json({ error: 'No image file uploaded.' });
+      return;
+    }
+    const imageUrl = `/uploads/characters/${req.file.filename}`;
+    res.json({ imageUrl });
+  });
 
   // GET all characters
   app.get('/api/characters', (_req, res) => {
@@ -685,6 +710,23 @@ async function startServer() {
     }
 
     const existing = db.characters[idx];
+
+    // Delete old image file if it's a file upload and is being changed
+    if (
+      existing.artwork &&
+      existing.artwork.startsWith('/uploads/') &&
+      body.artwork &&
+      body.artwork !== existing.artwork
+    ) {
+      const oldPath = path.join(__dirname, 'public', existing.artwork);
+      if (fs.existsSync(oldPath)) {
+        try {
+          fs.unlinkSync(oldPath);
+        } catch (err) {
+          console.error('Failed to delete old image:', err);
+        }
+      }
+    }
 
     const updated: StoredCharacter = {
       ...existing,
@@ -1495,6 +1537,7 @@ async function startServer() {
 
   // Serve /data/*.json for static fallback parity
   app.use('/data', express.static(DATA_DIR));
+  app.use('/uploads', express.static(path.join(__dirname, 'public', 'uploads')));
 
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
