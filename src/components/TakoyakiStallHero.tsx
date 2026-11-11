@@ -780,9 +780,9 @@ export const TakoyakiStallHero: React.FC<TakoyakiStallHeroProps> = ({
                       }}
                       onMouseEnter={playTakoyakiSizzle}
                       onClick={() => handleBallClick(char)}
-                      title={`${char.name} (Vị truyền thống)`}
-                      className={`group relative z-20 w-full aspect-square max-w-[88px] rounded-full transition-all duration-200 hover:-translate-y-1.5 active:scale-90 cursor-pointer focus-visible:outline-none ${
-                        isRevealed ? '-translate-y-1.5' : ''
+                      aria-label={`${char.name} (Vị truyền thống)`}
+                      className={`group relative hover:z-50 focus-visible:z-50 w-full aspect-square max-w-[88px] rounded-full transition-all duration-200 hover:-translate-y-1.5 active:scale-90 cursor-pointer focus-visible:outline-none ${
+                        isRevealed ? '-translate-y-1.5 z-50' : 'z-20'
                       }`}
                       style={{
                         boxShadow: '0 8px 16px rgba(0, 0, 0, 0.52)',
@@ -818,7 +818,7 @@ export const TakoyakiStallHero: React.FC<TakoyakiStallHeroProps> = ({
                       </div>
 
                       {isFav && (
-                        <span className="absolute -top-0.5 -right-0.5 w-4 h-4 sm:w-5 sm:h-5 rounded-full bg-[#FFFDF9] text-[#C84B31] flex items-center justify-center shadow-sm">
+                        <span className="absolute -top-0.5 -right-0.5 w-4 h-4 sm:w-5 sm:h-5 rounded-full bg-[#FFFDF9] text-[#C84B31] flex items-center justify-center shadow-sm z-10">
                           <Heart className="w-2.5 h-2.5 sm:w-3 sm:h-3 fill-current" />
                         </span>
                       )}
@@ -826,7 +826,7 @@ export const TakoyakiStallHero: React.FC<TakoyakiStallHeroProps> = ({
                       {/* Hover / Tap character name tooltip (hidden during flip-all) */}
                       {!isAllFlipped && (
                         <span
-                          className={`pointer-events-none group-hover:opacity-100 transition-opacity absolute -bottom-7 left-1/2 -translate-x-1/2 px-2.5 py-0.5 rounded-md bg-[#2A1A12] text-[#FFFDF9] text-[11px] font-medium whitespace-nowrap shadow-md z-30 ${
+                          className={`pointer-events-none group-hover:opacity-100 transition-opacity absolute -bottom-7 left-1/2 -translate-x-1/2 px-2.5 py-0.5 rounded-md bg-[#2A1A12] text-[#FFFDF9] text-[11px] font-medium whitespace-nowrap shadow-lg border border-[#D4A373]/40 z-50 ${
                             revealedId === char.id ? 'opacity-100' : 'opacity-0'
                           }`}
                         >
@@ -974,9 +974,9 @@ export const TakoyakiStallHero: React.FC<TakoyakiStallHeroProps> = ({
                       }}
                       onMouseEnter={playTakoyakiSizzle}
                       onClick={() => handleBallClick(char)}
-                      title={`${char.name} (Vị cay tê)`}
-                      className={`group relative z-20 w-full aspect-square max-w-[88px] rounded-full transition-all duration-200 hover:-translate-y-1.5 active:scale-90 cursor-pointer focus-visible:outline-none ${
-                        isRevealed ? '-translate-y-1.5' : ''
+                      aria-label={`${char.name} (Vị cay tê)`}
+                      className={`group relative hover:z-50 focus-visible:z-50 w-full aspect-square max-w-[88px] rounded-full transition-all duration-200 hover:-translate-y-1.5 active:scale-90 cursor-pointer focus-visible:outline-none ${
+                        isRevealed ? '-translate-y-1.5 z-50' : 'z-20'
                       }`}
                       style={{
                         boxShadow: '0 8px 16px rgba(0, 0, 0, 0.55)',
@@ -1012,7 +1012,7 @@ export const TakoyakiStallHero: React.FC<TakoyakiStallHeroProps> = ({
                       </div>
 
                       {isFav && (
-                        <span className="absolute -top-0.5 -right-0.5 w-4 h-4 sm:w-5 sm:h-5 rounded-full bg-[#FFFDF9] text-[#C83E2B] flex items-center justify-center shadow-sm">
+                        <span className="absolute -top-0.5 -right-0.5 w-4 h-4 sm:w-5 sm:h-5 rounded-full bg-[#FFFDF9] text-[#C83E2B] flex items-center justify-center shadow-sm z-10">
                           <Heart className="w-2.5 h-2.5 sm:w-3 sm:h-3 fill-current" />
                         </span>
                       )}
@@ -1020,7 +1020,7 @@ export const TakoyakiStallHero: React.FC<TakoyakiStallHeroProps> = ({
                       {/* Hover / Tap character name tooltip (hidden during flip-all) */}
                       {!isAllFlipped && (
                         <span
-                          className={`pointer-events-none group-hover:opacity-100 transition-opacity absolute -bottom-7 left-1/2 -translate-x-1/2 px-2.5 py-0.5 rounded-md bg-[#2A120E] text-[#FFFDF9] text-[11px] font-medium whitespace-nowrap shadow-md z-30 ${
+                          className={`pointer-events-none group-hover:opacity-100 transition-opacity absolute -bottom-7 left-1/2 -translate-x-1/2 px-2.5 py-0.5 rounded-md bg-[#2A120E] text-[#FFFDF9] text-[11px] font-medium whitespace-nowrap shadow-lg border border-[#F4A261]/35 z-50 ${
                             revealedId === char.id ? 'opacity-100' : 'opacity-0'
                           }`}
                         >
