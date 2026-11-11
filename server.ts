@@ -877,6 +877,29 @@ async function startServer() {
     res.json({ favorites: nextList, character });
   });
 
+  app.post('/api/user-box/:uid/reorder', (req, res) => {
+    const db = ensureDatabase();
+    const uid = String(req.params.uid || '').trim();
+    const { favorites } = req.body as { favorites?: string[] };
+
+    if (!uid || !Array.isArray(favorites)) {
+      res.status(400).json({ error: 'uid and favorites array are required.' });
+      return;
+    }
+    if (!db.userBoxes || typeof db.userBoxes !== 'object') db.userBoxes = {};
+
+    const cleanOrder = Array.from(
+      new Set(
+        favorites
+          .filter((id): id is string => typeof id === 'string' && id.trim().length > 0)
+          .map((id) => id.trim())
+      )
+    );
+    db.userBoxes[uid] = cleanOrder;
+    saveDatabase(db);
+    res.json({ favorites: cleanOrder });
+  });
+
   app.get('/api/verifications', (_req, res) => {
     const db = ensureDatabase();
     res.json({ verifications: db.verifications || [] });

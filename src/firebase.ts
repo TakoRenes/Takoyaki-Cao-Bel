@@ -315,10 +315,14 @@ export async function syncUserDailyVisitAndStats(
             manualCheckInVersion: 2,
             updatedAt: new Date().toISOString(),
           };
-          await setDoc(doc(db, 'users', uid.slice(0, 128), 'box', USER_STATS_DOC_ID), {
-            ...stats,
-            userId: uid.slice(0, 128),
-          });
+          await setDoc(
+            doc(db, 'users', uid.slice(0, 128), 'box', USER_STATS_DOC_ID),
+            {
+              ...stats,
+              userId: uid.slice(0, 128),
+            },
+            { merge: true }
+          );
         }
       }
     } catch {
@@ -371,10 +375,14 @@ export async function checkInUserDaily(
 
   if (uid) {
     try {
-      await setDoc(doc(db, 'users', uid.slice(0, 128), 'box', USER_STATS_DOC_ID), {
-        ...updated,
-        userId: uid.slice(0, 128),
-      });
+      await setDoc(
+        doc(db, 'users', uid.slice(0, 128), 'box', USER_STATS_DOC_ID),
+        {
+          ...updated,
+          userId: uid.slice(0, 128),
+        },
+        { merge: true }
+      );
     } catch {
       // Non-blocking
     }
@@ -400,10 +408,14 @@ export async function incrementUserPersonalPlayCount(
 
   if (uid) {
     try {
-      await setDoc(doc(db, 'users', uid.slice(0, 128), 'box', USER_STATS_DOC_ID), {
-        ...updated,
-        userId: uid.slice(0, 128),
-      });
+      await setDoc(
+        doc(db, 'users', uid.slice(0, 128), 'box', USER_STATS_DOC_ID),
+        {
+          ...updated,
+          userId: uid.slice(0, 128),
+        },
+        { merge: true }
+      );
     } catch {
       // Non-blocking
     }
@@ -413,7 +425,8 @@ export async function incrementUserPersonalPlayCount(
 }
 
 /**
- * Subscribe to the signed-in user's private Takoyaki Box (`users/{uid}/box`).
+ * Subscribe to the signed-in user's private Takoyaki Box (`users/{uid}/box`),
+ * respecting any saved custom `boxOrder`.
  */
 export function subscribeToUserBox(
   uid: string,
@@ -425,8 +438,17 @@ export function subscribeToUserBox(
     .then((snapshot) => {
       if (isCancelled) return;
       const ids: string[] = [];
+      let savedOrder: string[] = [];
       snapshot.forEach((docSnap) => {
-        if (docSnap.id === USER_STATS_DOC_ID) return;
+        if (docSnap.id === USER_STATS_DOC_ID) {
+          const statsData = docSnap.data();
+          if (statsData && Array.isArray(statsData.boxOrder)) {
+            savedOrder = statsData.boxOrder.filter(
+              (x: unknown): x is string => typeof x === 'string'
+            );
+          }
+          return;
+        }
         const data = docSnap.data();
         if (data && typeof data.characterId === 'string') {
           ids.push(data.characterId);
@@ -434,6 +456,17 @@ export function subscribeToUserBox(
           ids.push(docSnap.id);
         }
       });
+
+      if (savedOrder.length > 0) {
+        const orderMap = new Map<string, number>();
+        savedOrder.forEach((id, index) => orderMap.set(id, index));
+        ids.sort((a, b) => {
+          const idxA = orderMap.has(a) ? orderMap.get(a)! : 99999;
+          const idxB = orderMap.has(b) ? orderMap.get(b)! : 99999;
+          return idxA - idxB;
+        });
+      }
+
       onUpdate(ids);
     })
     .catch((error) => {
@@ -442,6 +475,30 @@ export function subscribeToUserBox(
   return () => {
     isCancelled = true;
   };
+}
+
+/**
+ * Persist the user's custom Takoyaki Box order in Firestore.
+ */
+export async function saveUserBoxOrderInFirestore(
+  uid: string,
+  orderedIds: string[]
+): Promise<void> {
+  const safeUid = uid.slice(0, 128);
+  if (!safeUid) return;
+  try {
+    await setDoc(
+      doc(db, 'users', safeUid, 'box', USER_STATS_DOC_ID),
+      {
+        userId: safeUid,
+        boxOrder: orderedIds.slice(0, 200),
+        updatedAt: new Date().toISOString(),
+      },
+      { merge: true }
+    );
+  } catch (error) {
+    console.warn('Failed to save box order in Firestore:', error);
+  }
 }
 
 /**

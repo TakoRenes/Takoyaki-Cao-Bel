@@ -6,6 +6,7 @@ import {
   signInWithGoogle,
   signOutUser,
   subscribeToUserBox,
+  saveUserBoxOrderInFirestore,
   addCharacterToUserBox,
   removeCharacterFromUserBox,
   subscribeToCharacters,
@@ -337,15 +338,32 @@ export default function App() {
         if (res.ok && !isCancelled) {
           const data = await res.json();
           if (Array.isArray(data.favorites)) {
-            setFavorites(data.favorites);
-            try {
-              localStorage.setItem(
-                getAccountBoxCacheKey(uid),
-                JSON.stringify(data.favorites)
-              );
-            } catch {
-              // Ignore storage error
-            }
+            setFavorites((prev) => {
+              const serverFavs: string[] = data.favorites;
+              if (prev.length === 0) {
+                try {
+                  localStorage.setItem(
+                    getAccountBoxCacheKey(uid),
+                    JSON.stringify(serverFavs)
+                  );
+                } catch {
+                  // Ignore
+                }
+                return serverFavs;
+              }
+              const serverSet = new Set(serverFavs);
+              const keptInOrder = prev.filter((id) => serverSet.has(id));
+              const merged = Array.from(new Set([...keptInOrder, ...serverFavs]));
+              try {
+                localStorage.setItem(
+                  getAccountBoxCacheKey(uid),
+                  JSON.stringify(merged)
+                );
+              } catch {
+                // Ignore
+              }
+              return merged;
+            });
           }
         }
       } catch (err) {
@@ -794,6 +812,40 @@ export default function App() {
     }
   };
 
+  // Reorder takoyaki balls inside the user's My Box (persisted in localStorage, Firestore, and Server)
+  const handleReorderFavorites = async (orderedIds: string[]) => {
+    const cleanOrder = Array.from(new Set(orderedIds.filter(Boolean)));
+    setFavorites(cleanOrder);
+
+    if (!currentUser) {
+      try {
+        localStorage.setItem(GUEST_FAVORITES_STORAGE_KEY, JSON.stringify(cleanOrder));
+      } catch {
+        // Ignore
+      }
+      return;
+    }
+
+    const uid = currentUser.uid;
+    try {
+      localStorage.setItem(getAccountBoxCacheKey(uid), JSON.stringify(cleanOrder));
+    } catch {
+      // Ignore
+    }
+
+    void saveUserBoxOrderInFirestore(uid, cleanOrder);
+
+    try {
+      await fetch(`/api/user-box/${encodeURIComponent(uid)}/reorder`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ favorites: cleanOrder }),
+      });
+    } catch {
+      // Non-blocking on static hosting
+    }
+  };
+
   // Best Seller Ranking: Track valid clicks by real authenticated accounts
   const handlePlayCharacter = async (char: TakoyakiCharacter) => {
     if (!char.playUrl) return;
@@ -1074,11 +1126,13 @@ export default function App() {
     });
   }, [rankingPool, rankingSort]);
 
-  // Favorites ("My Box")
-  const myBoxCharacters = useMemo(
-    () => publishedCharacters.filter((c) => favorites.includes(c.id)),
-    [publishedCharacters, favorites]
-  );
+  // Favorites ("My Box") — ordered strictly according to the user's `favorites` array
+  const myBoxCharacters = useMemo(() => {
+    const byId = new Map(publishedCharacters.map((c) => [c.id, c]));
+    return favorites
+      .map((id) => byId.get(id))
+      .filter((c): c is TakoyakiCharacter => Boolean(c));
+  }, [publishedCharacters, favorites]);
 
   return (
     <div className="min-h-screen flex flex-col bg-[#FAF5EB] text-[#432314]">
@@ -1263,6 +1317,7 @@ export default function App() {
             onSelectCharacter={handleSelectCharacter}
             onPlayCharacter={handlePlayCharacter}
             onRemoveFavorite={handleToggleFavorite}
+            onReorderCharacters={handleReorderFavorites}
             onGoToTrays={() => setActiveTab('discover')}
           />
         )}

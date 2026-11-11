@@ -1,7 +1,16 @@
 import React, { useState } from 'react';
 import { TakoyakiCharacter } from '../types';
-import { X, Compass, PackageOpen, Package, ChevronLeft, ChevronRight } from 'lucide-react';
-import { playPaperBoxOpenSound } from '../utils/sizzleSound';
+import {
+  X,
+  Compass,
+  PackageOpen,
+  Package,
+  ChevronLeft,
+  ChevronRight,
+  ArrowLeftRight,
+  Check,
+} from 'lucide-react';
+import { playPaperBoxOpenSound, playTakoyakiSizzle } from '../utils/sizzleSound';
 import { TakoyakiBallCover } from './TakoyakiStallHero';
 
 const BOX_CAPACITY = 3;
@@ -11,6 +20,7 @@ interface MyTakoyakiBoxProps {
   onSelectCharacter: (character: TakoyakiCharacter) => void;
   onPlayCharacter: (character: TakoyakiCharacter) => void;
   onRemoveFavorite: (id: string) => void;
+  onReorderCharacters?: (orderedIds: string[]) => void;
   onGoToTrays: () => void;
 }
 
@@ -18,6 +28,7 @@ export const MyTakoyakiBox: React.FC<MyTakoyakiBoxProps> = ({
   characters,
   onSelectCharacter,
   onRemoveFavorite,
+  onReorderCharacters,
   onGoToTrays,
 }) => {
   // Always start closed when switching to My Box
@@ -26,6 +37,10 @@ export const MyTakoyakiBox: React.FC<MyTakoyakiBoxProps> = ({
   const [steamTriggerCount, setSteamTriggerCount] = useState<number>(0);
   const [revealedId, setRevealedId] = useState<string | null>(null);
   const [currentBoxIndex, setCurrentBoxIndex] = useState<number>(0);
+  const [isArrangeMode, setIsArrangeMode] = useState<boolean>(false);
+  const [selectedSwapId, setSelectedSwapId] = useState<string | null>(null);
+  const [draggedId, setDraggedId] = useState<string | null>(null);
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
   const lastPointerTypeRef = React.useRef<string>('mouse');
 
   const totalBoxes = Math.max(1, Math.ceil(characters.length / BOX_CAPACITY));
@@ -34,6 +49,47 @@ export const MyTakoyakiBox: React.FC<MyTakoyakiBoxProps> = ({
     activeBoxIndex * BOX_CAPACITY,
     (activeBoxIndex + 1) * BOX_CAPACITY
   );
+
+  const swapCharacterPositions = (idA: string, idB: string) => {
+    if (!onReorderCharacters || idA === idB) return;
+    const ids = characters.map((c) => c.id);
+    const idxA = ids.indexOf(idA);
+    const idxB = ids.indexOf(idB);
+    if (idxA === -1 || idxB === -1) return;
+    const nextIds = [...ids];
+    [nextIds[idxA], nextIds[idxB]] = [nextIds[idxB], nextIds[idxA]];
+    playTakoyakiSizzle();
+    onReorderCharacters(nextIds);
+  };
+
+  const shiftCharacterByOffset = (id: string, delta: -1 | 1) => {
+    if (!onReorderCharacters) return;
+    const ids = characters.map((c) => c.id);
+    const idx = ids.indexOf(id);
+    const targetIdx = idx + delta;
+    if (idx === -1 || targetIdx < 0 || targetIdx >= ids.length) return;
+    const nextIds = [...ids];
+    [nextIds[idx], nextIds[targetIdx]] = [nextIds[targetIdx], nextIds[idx]];
+    playTakoyakiSizzle();
+    onReorderCharacters(nextIds);
+    const targetBox = Math.floor(targetIdx / BOX_CAPACITY);
+    if (targetBox !== activeBoxIndex) {
+      setCurrentBoxIndex(targetBox);
+    }
+  };
+
+  const moveCharacterToBox = (id: string, targetBoxIdx: number) => {
+    if (!onReorderCharacters) return;
+    const ids = characters.map((c) => c.id);
+    const fromIdx = ids.indexOf(id);
+    if (fromIdx === -1) return;
+    const nextIds = ids.filter((item) => item !== id);
+    const insertIdx = Math.min(nextIds.length, targetBoxIdx * BOX_CAPACITY);
+    nextIds.splice(insertIdx, 0, id);
+    playTakoyakiSizzle();
+    onReorderCharacters(nextIds);
+    setCurrentBoxIndex(targetBoxIdx);
+  };
 
   const handlePrevBox = () => {
     if (activeBoxIndex > 0) {
@@ -50,6 +106,19 @@ export const MyTakoyakiBox: React.FC<MyTakoyakiBoxProps> = ({
   };
 
   const handleBallClick = (char: TakoyakiCharacter) => {
+    if (isArrangeMode) {
+      if (!selectedSwapId) {
+        setSelectedSwapId(char.id);
+        setRevealedId(char.id);
+      } else if (selectedSwapId === char.id) {
+        setSelectedSwapId(null);
+      } else {
+        swapCharacterPositions(selectedSwapId, char.id);
+        setSelectedSwapId(null);
+      }
+      return;
+    }
+
     const isTouchDevice =
       lastPointerTypeRef.current === 'touch' ||
       lastPointerTypeRef.current === 'pen' ||
@@ -70,6 +139,8 @@ export const MyTakoyakiBox: React.FC<MyTakoyakiBoxProps> = ({
 
   const handleCloseBox = () => {
     setIsOpen(false);
+    setIsArrangeMode(false);
+    setSelectedSwapId(null);
   };
 
   const handleToggleBox = () => {
@@ -79,6 +150,10 @@ export const MyTakoyakiBox: React.FC<MyTakoyakiBoxProps> = ({
       handleOpenBox();
     }
   };
+
+  const selectedSwapChar = selectedSwapId
+    ? characters.find((c) => c.id === selectedSwapId) || null
+    : null;
 
   return (
     <section className="max-w-[1080px] mx-auto px-4 sm:px-8 py-6 sm:py-10">
@@ -106,9 +181,50 @@ export const MyTakoyakiBox: React.FC<MyTakoyakiBoxProps> = ({
               </>
             )}
           </button>
+
+          {isOpen && characters.length > 1 && (
+            <button
+              type="button"
+              onClick={() => {
+                setIsArrangeMode((prev) => !prev);
+                setSelectedSwapId(null);
+              }}
+              className={`inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full border text-xs font-semibold shadow-2xs transition-all cursor-pointer ${
+                isArrangeMode
+                  ? 'bg-[#E57C29] hover:bg-[#D46B1A] border-[#C84B31] text-white'
+                  : 'bg-[#FAF3E6] hover:bg-[#F2E5D3] border-[#D4B68F] text-[#432314]'
+              }`}
+            >
+              {isArrangeMode ? (
+                <>
+                  <Check className="w-3.5 h-3.5" />
+                  <span>Xong vị trí</span>
+                </>
+              ) : (
+                <>
+                  <ArrowLeftRight className="w-3.5 h-3.5 text-[#E57C29]" />
+                  <span>Đổi vị trí bánh</span>
+                </>
+              )}
+            </button>
+          )}
         </div>
 
-        {/* Box Switcher (When there are more than 6 pieces, creating multiple boxes) */}
+        {isOpen && isArrangeMode && (
+          <div className="mt-1 px-3.5 py-1 rounded-full bg-[#FFF3E0] border border-[#F4B942] text-[#432314] text-[11px] sm:text-xs font-semibold shadow-2xs">
+            {selectedSwapChar ? (
+              <span>
+                Đang chọn <strong className="text-[#C84B31]">{selectedSwapChar.name}</strong> · Chạm vào viên bánh khác (hoặc hộp khác) để đổi chỗ!
+              </span>
+            ) : (
+              <span>
+                Chạm vào 2 viên bánh để đổi chỗ cho nhau, dùng nút ◀ ▶ hoặc kéo thả trực tiếp!
+              </span>
+            )}
+          </div>
+        )}
+
+        {/* Box Switcher (When there are more than 3 pieces, creating multiple boxes) */}
         {totalBoxes > 1 && (
           <div className="flex flex-wrap items-center justify-center gap-2 mt-2">
             <button
@@ -125,14 +241,21 @@ export const MyTakoyakiBox: React.FC<MyTakoyakiBoxProps> = ({
             {/* Box Tabs / Quick Selectors */}
             <div className="flex items-center gap-1.5 p-1 rounded-full bg-[#EDE1CD]/70 border border-[#D4B68F]">
               {Array.from({ length: totalBoxes }).map((_, idx) => {
-                const countInThisBox = characters.slice(
-                  idx * BOX_CAPACITY,
-                  (idx + 1) * BOX_CAPACITY
-                ).length;
                 return (
                   <button
                     key={idx}
                     type="button"
+                    onDragOver={(e) => {
+                      if (draggedId) e.preventDefault();
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      if (draggedId) {
+                        moveCharacterToBox(draggedId, idx);
+                        setDraggedId(null);
+                        setDragOverId(null);
+                      }
+                    }}
                     onClick={() => {
                       setCurrentBoxIndex(idx);
                       setRevealedId(null);
@@ -167,31 +290,6 @@ export const MyTakoyakiBox: React.FC<MyTakoyakiBoxProps> = ({
       {/* INTERACTIVE OPEN/CLOSE FOLDED KRAFT-PAPER CLAMSHELL TAKEAWAY BOX    */}
       {/* =================================================================== */}
       <div className="relative w-full max-w-[920px] mx-auto select-none overflow-hidden px-0 sm:px-2">
-        {/* Floating Side Arrows for Fast Box Switching when > 6 pieces */}
-        {totalBoxes > 1 && (
-          <>
-            <button
-              type="button"
-              onClick={handlePrevBox}
-              disabled={activeBoxIndex === 0}
-              title="Hộp trước"
-              aria-label="Hộp trước"
-              className="absolute left-1 sm:left-3 top-1/2 -translate-y-1/2 z-40 w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-[#FAF3E6]/95 hover:bg-[#FFFDF9] disabled:opacity-0 disabled:pointer-events-none border border-[#C5A680] text-[#5C3724] shadow-md flex items-center justify-center transition-all cursor-pointer active:scale-90"
-            >
-              <ChevronLeft className="w-5 h-5" />
-            </button>
-            <button
-              type="button"
-              onClick={handleNextBox}
-              disabled={activeBoxIndex === totalBoxes - 1}
-              title="Hộp tiếp theo"
-              aria-label="Hộp tiếp theo"
-              className="absolute right-1 sm:right-3 top-1/2 -translate-y-1/2 z-40 w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-[#FAF3E6]/95 hover:bg-[#FFFDF9] disabled:opacity-0 disabled:pointer-events-none border border-[#C5A680] text-[#5C3724] shadow-md flex items-center justify-center transition-all cursor-pointer active:scale-90"
-            >
-              <ChevronRight className="w-5 h-5" />
-            </button>
-          </>
-        )}
         {/* Slightly zoom the box horizontally on narrow mobile screens so the paper tray fills the screen width */}
         <div className="relative w-[118%] -left-[9%] sm:w-full sm:left-0 aspect-[1000/670]">
           {/* --------------------------------------------------------------- */}
@@ -550,14 +648,55 @@ export const MyTakoyakiBox: React.FC<MyTakoyakiBoxProps> = ({
                 <div className="w-full h-full px-1 flex items-center justify-center overflow-visible">
                   <div className="w-full max-w-[92%] sm:max-w-[84%] grid grid-cols-3 gap-x-2 sm:gap-x-6 md:gap-x-8 items-start justify-items-center m-auto">
                     {activeBoxCharacters.map((char, idx) => {
-                      const isRevealed = revealedId === char.id;
+                      const globalIdx = activeBoxIndex * BOX_CAPACITY + idx;
+                      const isSelectedForSwap = selectedSwapId === char.id;
+                      const isDragTarget = dragOverId === char.id && draggedId !== char.id;
+                      const isRevealed =
+                        revealedId === char.id || isSelectedForSwap || isArrangeMode;
 
                       return (
                         <div
                           key={char.id}
-                          className={`group relative hover:z-40 flex flex-col items-center w-full min-w-0 ${
-                            isRevealed ? 'z-40' : 'z-10'
-                          }`}
+                          draggable={isOpen && characters.length > 1}
+                          onDragStart={(e) => {
+                            setDraggedId(char.id);
+                            e.dataTransfer.effectAllowed = 'move';
+                            try {
+                              e.dataTransfer.setData('text/plain', char.id);
+                            } catch {
+                              // Ignore
+                            }
+                          }}
+                          onDragOver={(e) => {
+                            if (!draggedId || draggedId === char.id) return;
+                            e.preventDefault();
+                            e.dataTransfer.dropEffect = 'move';
+                            if (dragOverId !== char.id) {
+                              setDragOverId(char.id);
+                            }
+                          }}
+                          onDragLeave={() => {
+                            if (dragOverId === char.id) {
+                              setDragOverId(null);
+                            }
+                          }}
+                          onDrop={(e) => {
+                            e.preventDefault();
+                            const sourceId =
+                              draggedId || e.dataTransfer.getData('text/plain');
+                            if (sourceId && sourceId !== char.id) {
+                              swapCharacterPositions(sourceId, char.id);
+                            }
+                            setDraggedId(null);
+                            setDragOverId(null);
+                          }}
+                          onDragEnd={() => {
+                            setDraggedId(null);
+                            setDragOverId(null);
+                          }}
+                          className={`group relative hover:z-40 flex flex-col items-center w-full min-w-0 transition-transform ${
+                            isRevealed || isSelectedForSwap ? 'z-40' : 'z-10'
+                          } ${draggedId === char.id ? 'opacity-50 scale-95' : ''}`}
                         >
                           {/* Soft paper contact shadow directly beneath each takoyaki ball */}
                           <div
@@ -565,21 +704,55 @@ export const MyTakoyakiBox: React.FC<MyTakoyakiBoxProps> = ({
                             style={{ background: '#6E4526' }}
                           />
 
+                          {/* Left / Right shift buttons when in Arrange Mode */}
+                          {isArrangeMode && (
+                            <>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  shiftCharacterByOffset(char.id, -1);
+                                }}
+                                disabled={globalIdx === 0}
+                                title="Sang trái"
+                                aria-label="Di chuyển sang trái"
+                                className="absolute left-0 top-1/2 -translate-y-3 z-40 w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-[#FFFDF9] hover:bg-[#E57C29] text-[#432314] hover:text-white disabled:opacity-25 disabled:pointer-events-none border border-[#D4A373] shadow-sm flex items-center justify-center cursor-pointer transition-colors"
+                              >
+                                <ChevronLeft className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  shiftCharacterByOffset(char.id, 1);
+                                }}
+                                disabled={globalIdx === characters.length - 1}
+                                title="Sang phải"
+                                aria-label="Di chuyển sang phải"
+                                className="absolute right-0 top-1/2 -translate-y-3 z-40 w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-[#FFFDF9] hover:bg-[#E57C29] text-[#432314] hover:text-white disabled:opacity-25 disabled:pointer-events-none border border-[#D4A373] shadow-sm flex items-center justify-center cursor-pointer transition-colors"
+                              >
+                                <ChevronRight className="w-3.5 h-3.5" />
+                              </button>
+                            </>
+                          )}
+
                           {/* Remove favorite button */}
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onRemoveFavorite(char.id);
-                            }}
-                            title="Remove from My Box"
-                            aria-label={`Remove ${char.name} from My Box`}
-                            className={`group-hover:opacity-100 focus:opacity-100 transition-opacity absolute -top-1 right-0.5 sm:right-2 z-30 w-4 h-4 sm:w-4.5 sm:h-4.5 rounded-full bg-[#FFFDF9] hover:bg-[#B84A32] text-[#5C3724] hover:text-white border border-[#C5A680] flex items-center justify-center shadow-xs cursor-pointer ${
-                              isRevealed ? 'opacity-100' : 'opacity-0'
-                            }`}
-                          >
-                            <X className="w-2.5 h-2.5" />
-                          </button>
+                          {!isArrangeMode && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onRemoveFavorite(char.id);
+                              }}
+                              title="Remove from My Box"
+                              aria-label={`Remove ${char.name} from My Box`}
+                              className={`group-hover:opacity-100 focus:opacity-100 transition-opacity absolute -top-1 right-0.5 sm:right-2 z-30 w-4 h-4 sm:w-4.5 sm:h-4.5 rounded-full bg-[#FFFDF9] hover:bg-[#B84A32] text-[#5C3724] hover:text-white border border-[#C5A680] flex items-center justify-center shadow-xs cursor-pointer ${
+                                isRevealed ? 'opacity-100' : 'opacity-0'
+                              }`}
+                            >
+                              <X className="w-2.5 h-2.5" />
+                            </button>
+                          )}
 
                           {/* Spicy indicator tag */}
                           {char.is_spicy && (
@@ -595,8 +768,14 @@ export const MyTakoyakiBox: React.FC<MyTakoyakiBoxProps> = ({
                               lastPointerTypeRef.current = e.pointerType;
                             }}
                             onClick={() => handleBallClick(char)}
-                            className={`relative ${ballSizeClass} shrink-0 rounded-full transition-transform duration-200 group-hover:-translate-y-0.5 cursor-pointer focus-visible:outline-none ${
-                              isRevealed ? '-translate-y-0.5' : ''
+                            className={`relative ${ballSizeClass} shrink-0 rounded-full transition-all duration-200 group-hover:-translate-y-0.5 cursor-grab active:cursor-grabbing focus-visible:outline-none ${
+                              isSelectedForSwap
+                                ? '-translate-y-1.5 ring-3 ring-[#E57C29] shadow-lg'
+                                : isDragTarget
+                                ? 'scale-105 ring-2 ring-dashed ring-[#E57C29]'
+                                : isRevealed
+                                ? '-translate-y-0.5'
+                                : ''
                             }`}
                             style={{
                               boxShadow: '0 4px 10px rgba(68, 38, 16, 0.36)',
@@ -633,10 +812,12 @@ export const MyTakoyakiBox: React.FC<MyTakoyakiBoxProps> = ({
 
                           {/* Character Name Paper Tag */}
                           <span
-                            className={`rounded-full group-hover:bg-[#432314] group-hover:text-[#FFFDF9] border border-[#D4B68F] font-display font-semibold transition-colors text-center whitespace-nowrap shadow-2xs leading-tight text-[7.5px] sm:text-xs px-1.5 sm:px-2.5 py-0.5 mt-1.5 ${
-                              isRevealed
-                                ? 'bg-[#432314] text-[#FFFDF9]'
-                                : 'bg-[#F7EBD9]/95 text-[#432314]'
+                            className={`rounded-full group-hover:bg-[#432314] group-hover:text-[#FFFDF9] border font-display font-semibold transition-colors text-center whitespace-nowrap shadow-2xs leading-tight text-[7.5px] sm:text-xs px-1.5 sm:px-2.5 py-0.5 mt-1.5 ${
+                              isSelectedForSwap
+                                ? 'bg-[#E57C29] text-white border-[#C84B31]'
+                                : isRevealed
+                                ? 'bg-[#432314] text-[#FFFDF9] border-[#D4B68F]'
+                                : 'bg-[#F7EBD9]/95 text-[#432314] border-[#D4B68F]'
                             }`}
                           >
                             {char.name}
