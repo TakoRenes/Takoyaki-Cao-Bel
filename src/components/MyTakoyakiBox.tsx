@@ -4,7 +4,7 @@ import { X, Compass, PackageOpen, Package, ChevronLeft, ChevronRight } from 'luc
 import { playPaperBoxOpenSound } from '../utils/sizzleSound';
 import { TakoyakiBallCover } from './TakoyakiStallHero';
 
-const BOX_CAPACITY = 6;
+const BOX_CAPACITY = 3;
 
 interface MyTakoyakiBoxProps {
   characters: TakoyakiCharacter[];
@@ -537,44 +537,27 @@ export const MyTakoyakiBox: React.FC<MyTakoyakiBoxProps> = ({
           {/* LAYER 2: DYNAMIC SAVED TAKOYAKI CHARACTERS INSIDE THE PAPER BOX */}
           {/* --------------------------------------------------------------- */}
           <div
-            className={`absolute inset-x-[19.5%] sm:inset-x-[21%] top-[47%] bottom-[18%] z-20 flex items-center justify-center transition-all duration-300 ${
+            className={`absolute inset-x-[18.5%] sm:inset-x-[22%] top-[46%] bottom-[17%] z-20 flex items-center justify-center transition-all duration-300 ${
               isOpen
                 ? 'opacity-100 scale-100 pointer-events-auto delay-150'
                 : 'opacity-0 scale-95 pointer-events-none'
             }`}
           >
             {activeBoxCharacters.length > 0 && (() => {
-              const count = activeBoxCharacters.length;
-              const rows = Math.ceil(count / 3);
-
-              // Exactly 3 balls per row (grid-cols-3). Max 6 balls per box = at most 2 rows!
-              const gapClass =
-                rows === 1
-                  ? 'gap-x-6 sm:gap-x-12 gap-y-4'
-                  : 'gap-x-4 sm:gap-x-10 gap-y-3 sm:gap-y-4';
-
-              const ballSizeClass =
-                rows === 1
-                  ? 'w-16 h-16 sm:w-20 sm:h-20 md:w-24 md:h-24'
-                  : 'w-12 h-12 sm:w-16 sm:h-16 md:w-20 md:h-20';
-
-              const tagTextClass =
-                rows === 1
-                  ? 'text-[10px] sm:text-xs px-2.5 py-0.5 max-w-[90px] sm:max-w-[130px] mt-1.5'
-                  : 'text-[9px] sm:text-[11px] px-2 sm:px-2.5 py-0.5 max-w-[75px] sm:max-w-[110px] mt-1';
+              const ballSizeClass = 'w-14 h-14 sm:w-20 sm:h-20 md:w-24 md:h-24';
 
               return (
                 <div className="w-full h-full px-1 flex items-center justify-center overflow-visible">
-                  <div className={`w-full max-w-[88%] grid grid-cols-3 ${gapClass} place-items-center m-auto`}>
+                  <div className="w-full max-w-[92%] sm:max-w-[84%] grid grid-cols-3 gap-x-2 sm:gap-x-6 md:gap-x-8 items-start justify-items-center m-auto">
                     {activeBoxCharacters.map((char, idx) => {
-                      const rotationClass =
-                        idx % 3 === 0 ? '-rotate-1' : idx % 3 === 1 ? 'rotate-1' : 'rotate-0';
                       const isRevealed = revealedId === char.id;
 
                       return (
                         <div
                           key={char.id}
-                          className={`group relative flex flex-col items-center ${rotationClass}`}
+                          className={`group relative hover:z-40 flex flex-col items-center w-full min-w-0 ${
+                            isRevealed ? 'z-40' : 'z-10'
+                          }`}
                         >
                           {/* Soft paper contact shadow directly beneath each takoyaki ball */}
                           <div
@@ -591,16 +574,16 @@ export const MyTakoyakiBox: React.FC<MyTakoyakiBoxProps> = ({
                             }}
                             title="Remove from My Box"
                             aria-label={`Remove ${char.name} from My Box`}
-                            className={`group-hover:opacity-100 focus:opacity-100 transition-opacity absolute -top-1 -right-1 z-30 w-3.5 h-3.5 sm:w-4.5 sm:h-4.5 rounded-full bg-[#FFFDF9] hover:bg-[#B84A32] text-[#5C3724] hover:text-white border border-[#C5A680] flex items-center justify-center shadow-xs cursor-pointer ${
+                            className={`group-hover:opacity-100 focus:opacity-100 transition-opacity absolute -top-1 right-0.5 sm:right-2 z-30 w-4 h-4 sm:w-4.5 sm:h-4.5 rounded-full bg-[#FFFDF9] hover:bg-[#B84A32] text-[#5C3724] hover:text-white border border-[#C5A680] flex items-center justify-center shadow-xs cursor-pointer ${
                               isRevealed ? 'opacity-100' : 'opacity-0'
                             }`}
                           >
-                            <X className="w-2 h-2 sm:w-2.5 sm:h-2.5" />
+                            <X className="w-2.5 h-2.5" />
                           </button>
 
                           {/* Spicy indicator tag */}
                           {char.is_spicy && (
-                            <span className="pointer-events-none absolute -top-1 -left-1 z-30 px-1 py-0 rounded-full bg-[#7D291E] text-[#FFFDF9] text-[6.5px] sm:text-[8px] font-bold tracking-wide shadow-2xs leading-tight">
+                            <span className="pointer-events-none absolute -top-1 left-0.5 sm:left-2 z-30 px-1 py-0 rounded-full bg-[#7D291E] text-[#FFFDF9] text-[6.5px] sm:text-[8px] font-bold tracking-wide shadow-2xs leading-tight">
                               18+
                             </span>
                           )}
@@ -612,7 +595,7 @@ export const MyTakoyakiBox: React.FC<MyTakoyakiBoxProps> = ({
                               lastPointerTypeRef.current = e.pointerType;
                             }}
                             onClick={() => handleBallClick(char)}
-                            className={`relative ${ballSizeClass} rounded-full transition-transform duration-200 group-hover:-translate-y-0.5 cursor-pointer focus-visible:outline-none ${
+                            className={`relative ${ballSizeClass} shrink-0 rounded-full transition-transform duration-200 group-hover:-translate-y-0.5 cursor-pointer focus-visible:outline-none ${
                               isRevealed ? '-translate-y-0.5' : ''
                             }`}
                             style={{
@@ -650,7 +633,7 @@ export const MyTakoyakiBox: React.FC<MyTakoyakiBoxProps> = ({
 
                           {/* Character Name Paper Tag */}
                           <span
-                            className={`rounded-full group-hover:bg-[#432314] group-hover:text-[#FFFDF9] border border-[#D4B68F] font-display font-semibold transition-colors truncate shadow-2xs leading-tight ${tagTextClass} ${
+                            className={`rounded-full group-hover:bg-[#432314] group-hover:text-[#FFFDF9] border border-[#D4B68F] font-display font-semibold transition-colors text-center whitespace-nowrap shadow-2xs leading-tight text-[7.5px] sm:text-xs px-1.5 sm:px-2.5 py-0.5 mt-1.5 ${
                               isRevealed
                                 ? 'bg-[#432314] text-[#FFFDF9]'
                                 : 'bg-[#F7EBD9]/95 text-[#432314]'
@@ -912,7 +895,7 @@ export const MyTakoyakiBox: React.FC<MyTakoyakiBoxProps> = ({
       {/* =================================================================== */}
       {/* EMPTY STATE MESSAGE & CTA BELOW THE PAPER BOX                       */}
       {/* =================================================================== */}
-      {characters.length === 0 ? (
+      {characters.length === 0 && (
         <div className="mt-2 text-center max-w-md mx-auto">
           <button
             type="button"
@@ -922,14 +905,6 @@ export const MyTakoyakiBox: React.FC<MyTakoyakiBoxProps> = ({
             <Compass className="w-4 h-4" />
             <span>Fill thêm takoyaki vào hộp khum?</span>
           </button>
-        </div>
-      ) : (
-        <div className="mt-3 flex flex-col items-center gap-1.5 text-center">
-          <p className="text-xs sm:text-sm font-medium text-[#846C5B]">
-            {isOpen
-              ? 'Click any takoyaki in your paper box to view its details, or click the paper lid to close the box.'
-              : 'Your takoyaki box is closed and keeping warm! Click the box lid to open it.'}
-          </p>
         </div>
       )}
       {isGameOpen && (
